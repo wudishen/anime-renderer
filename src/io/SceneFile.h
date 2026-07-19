@@ -6,7 +6,7 @@
 namespace SceneFile {
 
 // Current on-disk format version written by this build.
-constexpr int kCurrentFormatVersion = 1;
+constexpr int kCurrentFormatVersion = 2;
 
 // Oldest format version this build can still migrate and open.
 constexpr int kMinReadableFormatVersion = 1;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rendering/Mesh.h"
+#include "rendering/CameraBackground.h"
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
@@ -19,6 +20,7 @@ struct SceneObject {
     glm::vec3 color{1.0f, 0.5f, 0.2f};
     glm::mat4 transform{1.0f};
     float cameraFovDegrees = 45.0f;
+    CameraBackground background;
 
     void UploadMesh() {
         mesh.Upload(vertices);

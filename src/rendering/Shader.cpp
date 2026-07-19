@@ -89,3 +89,27 @@ void Shader::SetVec3(const char* name, const glm::vec3& value) const {
     }
     glUniform3fv(location, 1, glm::value_ptr(value));
 }
+
+void Shader::SetVec2(const char* name, const glm::vec2& value) const {
+    const GLint location = glGetUniformLocation(programID, name);
+    if (location < 0) {
+        return;
+    }
+    glUniform2fv(location, 1, glm::value_ptr(value));
+}
+
+void Shader::SetFloat(const char* name, float value) const {
+    const GLint location = glGetUniformLocation(programID, name);
+    if (location < 0) {
+        return;
+    }
+    glUniform1f(location, value);
+}
+
+void Shader::SetInt(const char* name, int value) const {
+    const GLint location = glGetUniformLocation(programID, name);
+    if (location < 0) {
+        return;
+    }
+    glUniform1i(location, value);
+}

@@ -130,7 +130,7 @@
       <Command>setlocal
 "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/gx/anime-renderer/build/Debug/shaders
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/build/Debug/shaders
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/src/rendering/shaders/bg.vert C:/Users/gx/anime-renderer/src/rendering/shaders/bg.frag C:/Users/gx/anime-renderer/build/Debug/shaders
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -200,7 +200,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <Command>setlocal
 "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/gx/anime-renderer/build/Release/shaders
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/build/Release/shaders
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/src/rendering/shaders/bg.vert C:/Users/gx/anime-renderer/src/rendering/shaders/bg.frag C:/Users/gx/anime-renderer/build/Release/shaders
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -270,7 +270,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <Command>setlocal
 "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/gx/anime-renderer/build/MinSizeRel/shaders
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/build/MinSizeRel/shaders
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/src/rendering/shaders/bg.vert C:/Users/gx/anime-renderer/src/rendering/shaders/bg.frag C:/Users/gx/anime-renderer/build/MinSizeRel/shaders
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -339,7 +339,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <Command>setlocal
 "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/gx/anime-renderer/build/RelWithDebInfo/shaders
 if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/build/RelWithDebInfo/shaders
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/gx/anime-renderer/src/rendering/shaders/basic.vert C:/Users/gx/anime-renderer/src/rendering/shaders/basic.frag C:/Users/gx/anime-renderer/src/rendering/shaders/bg.vert C:/Users/gx/anime-renderer/src/rendering/shaders/bg.frag C:/Users/gx/anime-renderer/build/RelWithDebInfo/shaders
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -429,6 +429,8 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\Shader.cpp" />
     <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\Mesh.cpp" />
     <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\Grid.cpp" />
+    <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\CameraBackground.cpp" />
+    <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\CameraBackgroundRenderer.cpp" />
     <ClCompile Include="C:\Users\gx\anime-renderer\src\scene\Scene.cpp" />
     <ClCompile Include="C:\Users\gx\anime-renderer\src\scene\Picking.cpp" />
     <ClCompile Include="C:\Users\gx\anime-renderer\src\scene\CameraFactory.cpp" />

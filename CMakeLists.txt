@@ -57,6 +57,8 @@ add_executable(AnimeRenderer
     src/rendering/Shader.cpp
     src/rendering/Mesh.cpp
     src/rendering/Grid.cpp
+    src/rendering/CameraBackground.cpp
+    src/rendering/CameraBackgroundRenderer.cpp
     src/scene/Scene.cpp
     src/scene/Picking.cpp
     src/scene/CameraFactory.cpp
@@ -97,5 +99,7 @@ add_custom_command(TARGET AnimeRenderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_SOURCE_DIR}/src/rendering/shaders/basic.vert
             ${CMAKE_SOURCE_DIR}/src/rendering/shaders/basic.frag
+            ${CMAKE_SOURCE_DIR}/src/rendering/shaders/bg.vert
+            ${CMAKE_SOURCE_DIR}/src/rendering/shaders/bg.frag
             $<TARGET_FILE_DIR:AnimeRenderer>/shaders
 )

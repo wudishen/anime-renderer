@@ -10,5 +10,6 @@ bool OpenObjFile(std::string& outPath);
 
 bool OpenSceneFile(std::string& outPath);
 bool SaveSceneFile(std::string& outPath);
+bool OpenImageFile(std::string& outPath);
 
 } // namespace FileDialog

@@ -3,6 +3,8 @@ C:\Users\gx\anime-renderer\src\engine\Window.cpp;C:\Users\gx\anime-renderer\buil
 C:\Users\gx\anime-renderer\src\rendering\Shader.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Shader.obj
 C:\Users\gx\anime-renderer\src\rendering\Mesh.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Mesh.obj
 C:\Users\gx\anime-renderer\src\rendering\Grid.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Grid.obj
+C:\Users\gx\anime-renderer\src\rendering\CameraBackground.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\CameraBackground.obj
+C:\Users\gx\anime-renderer\src\rendering\CameraBackgroundRenderer.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\CameraBackgroundRenderer.obj
 C:\Users\gx\anime-renderer\src\scene\Scene.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Scene.obj
 C:\Users\gx\anime-renderer\src\scene\Picking.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Picking.obj
 C:\Users\gx\anime-renderer\src\scene\CameraFactory.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\CameraFactory.obj

@@ -3,6 +3,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -69,10 +70,10 @@ std::string TypeToString(SceneObjectType type) {
 // the file on disk is left unchanged until the user saves again.
 bool MigrateToNextVersion(json& root, int fromVersion, std::string& error) {
     switch (fromVersion) {
-    // Example for a future v1 -> v2 change:
-    // case 1:
-    //     root["formatVersion"] = 2;
-    //     return true;
+    case 1:
+        // v1 -> v2: optional camera background fields; no data rewrite required.
+        root["formatVersion"] = 2;
+        return true;
     default:
         error = "No migration path from format version " + std::to_string(fromVersion) + ".";
         return false;
@@ -148,6 +149,15 @@ Result Save(const Scene& scene, const std::string& path) {
 
         if (object.IsCamera()) {
             entry["cameraFovDegrees"] = object.cameraFovDegrees;
+            if (object.background.HasImage()) {
+                json bg;
+                bg["imagePath"] = object.background.imagePath;
+                bg["opacity"] = object.background.opacity;
+                bg["offset"] = json::array({object.background.offset.x, object.background.offset.y});
+                bg["scale"] = object.background.scale;
+                bg["enabled"] = object.background.enabled;
+                entry["background"] = std::move(bg);
+            }
         } else {
             json vertices = json::array();
             for (const glm::vec3& v : object.vertices) {
@@ -243,6 +253,41 @@ Result Load(Scene& scene, const std::string& path) {
 
         if (!entry.contains("transform") || !Mat4FromJson(entry["transform"], object.transform, error)) {
             return {false, error.empty() ? "Object is missing transform." : error, warning};
+        }
+
+        if (object.IsCamera() && entry.contains("background") && entry["background"].is_object()) {
+            const json& bg = entry["background"];
+            object.background.opacity = bg.value("opacity", 0.5f);
+            object.background.scale = bg.value("scale", 1.0f);
+            object.background.enabled = bg.value("enabled", true);
+            if (bg.contains("offset") && bg["offset"].is_array() && bg["offset"].size() == 2 &&
+                bg["offset"][0].is_number() && bg["offset"][1].is_number()) {
+                object.background.offset = {
+                    bg["offset"][0].get<float>(),
+                    bg["offset"][1].get<float>(),
+                };
+            }
+
+            if (bg.contains("imagePath") && bg["imagePath"].is_string()) {
+                const std::string savedPath = bg["imagePath"].get<std::string>();
+                std::filesystem::path imagePath(savedPath);
+                if (!std::filesystem::exists(imagePath)) {
+                    imagePath = std::filesystem::path(path).parent_path() / savedPath;
+                }
+                if (std::filesystem::exists(imagePath)) {
+                    if (!object.background.LoadFromFile(imagePath.string())) {
+                        if (!warning.empty()) {
+                            warning += "\n";
+                        }
+                        warning += "Failed to load background image for '" + object.name + "': " + imagePath.string();
+                    }
+                } else {
+                    if (!warning.empty()) {
+                        warning += "\n";
+                    }
+                    warning += "Missing background image for '" + object.name + "': " + savedPath;
+                }
+            }
         }
 
         object.UploadMesh();

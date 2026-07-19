@@ -92,4 +92,18 @@ bool SaveSceneFile(std::string& outPath) {
 #endif
 }
 
+bool OpenImageFile(std::string& outPath) {
+#ifdef _WIN32
+    return RunDialog(
+        outPath,
+        false,
+        "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tga)\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0All Files (*.*)\0*.*\0",
+        "Choose Background Image",
+        "png");
+#else
+    (void)outPath;
+    return false;
+#endif
+}
+
 } // namespace FileDialog

@@ -16,6 +16,12 @@
     <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\Grid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\CameraBackground.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\gx\anime-renderer\src\rendering\CameraBackgroundRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\gx\anime-renderer\src\scene\Scene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

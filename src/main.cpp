@@ -13,6 +13,7 @@
 #include "engine/Window.h"
 #include "rendering/Shader.h"
 #include "rendering/Grid.h"
+#include "rendering/CameraBackgroundRenderer.h"
 #include "scene/Scene.h"
 #include "scene/CameraFactory.h"
 #include "scene/Picking.h"
@@ -226,6 +227,10 @@ int main() {
     std::cout << "Fragment shader: " << fragPath << std::endl;
 
     Shader shader(vertPath, fragPath);
+    const std::string bgVertPath = ResolveShaderPath("bg.vert");
+    const std::string bgFragPath = ResolveShaderPath("bg.frag");
+    Shader backgroundShader(bgVertPath, bgFragPath);
+    CameraBackgroundRenderer backgroundRenderer;
     Grid grid(10, 1.0f);
     TransformTool transformTool;
 
@@ -392,6 +397,10 @@ int main() {
         glViewport(0, 0, window.GetWidth(), window.GetHeight());
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if (const SceneObject* activeCamera = scene.GetActiveViewCamera()) {
+            backgroundRenderer.Draw(activeCamera->background, aspect, backgroundShader);
+        }
 
         const glm::mat4 viewProjection = projectionMatrix * GetActiveViewMatrix(scene);
         grid.Draw(shader, viewProjection);
