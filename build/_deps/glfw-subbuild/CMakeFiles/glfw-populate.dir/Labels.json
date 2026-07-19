@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/glfw-populate"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/891d8d237cfd828e7db874976dc4f3b8/glfw-populate.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/9a9a2a626eb757366915f1d15d18179f/glfw-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"glfw-populate"
+		],
+		"name" : "glfw-populate"
+	}
+}

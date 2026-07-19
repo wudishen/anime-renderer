@@ -1,0 +1,10 @@
+^C:\USERS\GX\ANIME-RENDERER\BUILD\_DEPS\NLOHMANN_JSON-SUBBUILD\CMAKEFILES\0DE42F0666F9152FE063B2B6F4C36E7A\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild -BC:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/nlohmann_json-populate.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

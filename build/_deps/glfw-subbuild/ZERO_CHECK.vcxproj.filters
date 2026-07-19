@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\glfw-subbuild\CMakeFiles\891d8d237cfd828e7db874976dc4f3b8\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{52C5359D-2FE6-310D-ABE1-8B34FD6D05E7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/imgui-populate"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/a45de693341ace8f3fbcd9cee1cdd10f/imgui-populate.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/ba7c918c8391386ec444fe6b59daa364/imgui-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/imgui-subbuild/CMakeFiles/87f17d29b6f7d70bfd00373696675721/imgui-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"imgui-populate"
+		],
+		"name" : "imgui-populate"
+	}
+}

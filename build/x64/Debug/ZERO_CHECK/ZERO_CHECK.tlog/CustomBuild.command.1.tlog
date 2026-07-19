@@ -1,0 +1,10 @@
+^C:\USERS\GX\ANIME-RENDERER\BUILD\CMAKEFILES\ADFD0BF42063446AF4B92C9FACCDCA04\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/gx/anime-renderer -BC:/Users/gx/anime-renderer/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/gx/anime-renderer/build/AnimeRenderer.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

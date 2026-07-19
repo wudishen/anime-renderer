@@ -1,0 +1,13 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/gx/anime-renderer/build/cmake_install.cmake",
+		"C:/Users/gx/anime-renderer/build/_deps/glfw-build/cmake_install.cmake",
+		"C:/Users/gx/anime-renderer/build/_deps/glfw-build/src/cmake_install.cmake",
+		"C:/Users/gx/anime-renderer/build/_deps/glfw-build/docs/cmake_install.cmake",
+		"C:/Users/gx/anime-renderer/build/_deps/glm-build/cmake_install.cmake",
+		"C:/Users/gx/anime-renderer/build/_deps/glm-build/glm/cmake_install.cmake",
+		"C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

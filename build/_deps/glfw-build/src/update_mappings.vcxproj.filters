@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\CMakeFiles\7d550d18cadf732e18d3f2130b7e3108\update_mappings.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\glfw-src\src\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\gx\anime-renderer\build\_deps\glfw-src\src\mappings.h.in">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="C:\Users\gx\anime-renderer\build\_deps\glfw-src\CMake\GenerateMappings.cmake" />
+    <None Include="C:\Users\gx\anime-renderer\build\_deps\glfw-build\src\CMakeFiles\update_mappings" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{29D8205C-488B-3747-A576-4F70EFFF83D1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{DEE04CCF-3ADF-3107-BE91-41FDFF6295ED}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

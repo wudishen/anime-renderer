@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\6409f73bf8f0d2adee269820d2b8866c\nlohmann_json-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\e863655de2a06fae845bd3eb7fdc9aae\nlohmann_json-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\0de42f0666f9152fe063b2b6f4c36e7a\nlohmann_json-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\gx\anime-renderer\build\_deps\nlohmann_json-subbuild\CMakeFiles\nlohmann_json-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{78F1790C-3D9A-3B5C-9C08-247BF3513EB9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

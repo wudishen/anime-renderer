@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/nlohmann_json-populate"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/0de42f0666f9152fe063b2b6f4c36e7a/nlohmann_json-populate.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/e863655de2a06fae845bd3eb7fdc9aae/nlohmann_json-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/gx/anime-renderer/build/_deps/nlohmann_json-subbuild/CMakeFiles/6409f73bf8f0d2adee269820d2b8866c/nlohmann_json-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"nlohmann_json-populate"
+		],
+		"name" : "nlohmann_json-populate"
+	}
+}

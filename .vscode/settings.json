@@ -1,0 +1,9 @@
+{
+  "cmake.buildDirectory": "${workspaceFolder}/build",
+  "cmake.generator": "Visual Studio 17 2022",
+  "cmake.buildBeforeRun": true,
+  "cmake.debugConfig": {
+    "cwd": "${workspaceFolder}",
+    "externalConsole": true
+  }
+}

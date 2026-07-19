@@ -1,0 +1,3 @@
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/glfw-populate.dir
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/ALL_BUILD.dir
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/ZERO_CHECK.dir

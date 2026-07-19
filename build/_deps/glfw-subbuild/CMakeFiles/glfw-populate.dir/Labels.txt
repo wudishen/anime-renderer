@@ -1,0 +1,14 @@
+# Target labels
+ glfw-populate
+# Source files and their labels
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/glfw-populate
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/891d8d237cfd828e7db874976dc4f3b8/glfw-populate.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/9a9a2a626eb757366915f1d15d18179f/glfw-populate-complete.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-build.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-configure.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-download.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-install.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-mkdir.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-patch.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-test.rule
+C:/Users/gx/anime-renderer/build/_deps/glfw-subbuild/CMakeFiles/cd5dd2845ef9c7c1f29dac7ef10bf66e/glfw-populate-update.rule

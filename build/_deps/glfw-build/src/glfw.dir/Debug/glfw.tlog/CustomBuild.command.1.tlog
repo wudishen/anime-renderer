@@ -1,0 +1,10 @@
+^C:\USERS\GX\ANIME-RENDERER\BUILD\_DEPS\GLFW-SRC\SRC\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/gx/anime-renderer -BC:/Users/gx/anime-renderer/build --check-stamp-file C:/Users/gx/anime-renderer/build/_deps/glfw-build/src/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

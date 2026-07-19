@@ -1,0 +1,16 @@
+C:\Users\gx\anime-renderer\src\main.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\main.obj
+C:\Users\gx\anime-renderer\src\engine\Window.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Window.obj
+C:\Users\gx\anime-renderer\src\rendering\Shader.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Shader.obj
+C:\Users\gx\anime-renderer\src\rendering\Mesh.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Mesh.obj
+C:\Users\gx\anime-renderer\src\rendering\Grid.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Grid.obj
+C:\Users\gx\anime-renderer\src\scene\Scene.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Scene.obj
+C:\Users\gx\anime-renderer\src\scene\Picking.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\Picking.obj
+C:\Users\gx\anime-renderer\src\scene\CameraFactory.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\CameraFactory.obj
+C:\Users\gx\anime-renderer\src\io\FileDialog.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\FileDialog.obj
+C:\Users\gx\anime-renderer\src\io\ObjLoader.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\ObjLoader.obj
+C:\Users\gx\anime-renderer\src\io\SceneFile.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\SceneFile.obj
+C:\Users\gx\anime-renderer\src\ui\MainMenu.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\MainMenu.obj
+C:\Users\gx\anime-renderer\src\ui\ObjectPanel.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\ObjectPanel.obj
+C:\Users\gx\anime-renderer\src\ui\ObjectContextMenu.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\ObjectContextMenu.obj
+C:\Users\gx\anime-renderer\src\tools\TransformTool.cpp;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\TransformTool.obj
+C:\Users\gx\anime-renderer\src\glad.c;C:\Users\gx\anime-renderer\build\AnimeRenderer.dir\Debug\glad.obj
