@@ -266,6 +266,11 @@ int main() {
     bool wasKeyZ = false;
     bool wasKeyEnter = false;
     bool wasKeyEscape = false;
+    bool wasKeyBackspace = false;
+    bool wasKeyMinus = false;
+    bool wasKeyPeriod = false;
+    bool wasDigitKey[10] = {};
+    bool wasKpDigitKey[10] = {};
 
     while (!window.ShouldClose()) {
         window.PollEvents();
@@ -294,6 +299,19 @@ int main() {
             glfwGetKey(glfwWindow, GLFW_KEY_ENTER) == GLFW_PRESS ||
             glfwGetKey(glfwWindow, GLFW_KEY_KP_ENTER) == GLFW_PRESS;
         const bool keyEscape = glfwGetKey(glfwWindow, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+        const bool keyBackspace = glfwGetKey(glfwWindow, GLFW_KEY_BACKSPACE) == GLFW_PRESS;
+        const bool keyMinus =
+            glfwGetKey(glfwWindow, GLFW_KEY_MINUS) == GLFW_PRESS ||
+            glfwGetKey(glfwWindow, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS;
+        const bool keyPeriod =
+            glfwGetKey(glfwWindow, GLFW_KEY_PERIOD) == GLFW_PRESS ||
+            glfwGetKey(glfwWindow, GLFW_KEY_KP_DECIMAL) == GLFW_PRESS;
+        bool digitDown[10] = {};
+        bool kpDigitDown[10] = {};
+        for (int digit = 0; digit <= 9; ++digit) {
+            digitDown[digit] = glfwGetKey(glfwWindow, GLFW_KEY_0 + digit) == GLFW_PRESS;
+            kpDigitDown[digit] = glfwGetKey(glfwWindow, GLFW_KEY_KP_0 + digit) == GLFW_PRESS;
+        }
 
         const float aspect = window.GetAspect();
         const ViewBasis viewBasis = GetActiveViewBasis(scene);
@@ -314,15 +332,34 @@ int main() {
         };
 
         if (transformTool.IsActive()) {
-            if (!MainMenu::WantCaptureKeyboard()) {
+            // Tool mode owns the keyboard so axis/numeric input works for cameras too
+            // (Objects panel focus would otherwise set WantCaptureKeyboard).
+            // Still yield while ImGui is actively editing a text/number field.
+            if (!ImGui::GetIO().WantTextInput) {
+                if (keyBackspace && !wasKeyBackspace) {
+                    transformTool.BackspaceNumeric(scene);
+                }
+                if (keyMinus && !wasKeyMinus) {
+                    transformTool.AppendNumericChar('-', scene);
+                }
+                if (keyPeriod && !wasKeyPeriod) {
+                    transformTool.AppendNumericChar('.', scene);
+                }
+                for (int digit = 0; digit <= 9; ++digit) {
+                    if ((digitDown[digit] && !wasDigitKey[digit]) ||
+                        (kpDigitDown[digit] && !wasKpDigitKey[digit])) {
+                        transformTool.AppendNumericChar(static_cast<char>('0' + digit), scene);
+                    }
+                }
+
                 if (keyX && !wasKeyX) {
-                    transformTool.ToggleAxisConstraint(AxisConstraint::X);
+                    transformTool.ToggleAxisConstraint(AxisConstraint::X, scene);
                 }
                 if (keyY && !wasKeyY) {
-                    transformTool.ToggleAxisConstraint(AxisConstraint::Y);
+                    transformTool.ToggleAxisConstraint(AxisConstraint::Y, scene);
                 }
                 if (keyZ && !wasKeyZ) {
-                    transformTool.ToggleAxisConstraint(AxisConstraint::Z);
+                    transformTool.ToggleAxisConstraint(AxisConstraint::Z, scene);
                 }
                 if (keyEnter && !wasKeyEnter) {
                     transformTool.Confirm();
@@ -393,6 +430,13 @@ int main() {
         wasKeyZ = keyZ;
         wasKeyEnter = keyEnter;
         wasKeyEscape = keyEscape;
+        wasKeyBackspace = keyBackspace;
+        wasKeyMinus = keyMinus;
+        wasKeyPeriod = keyPeriod;
+        for (int digit = 0; digit <= 9; ++digit) {
+            wasDigitKey[digit] = digitDown[digit];
+            wasKpDigitKey[digit] = kpDigitDown[digit];
+        }
 
         glViewport(0, 0, window.GetWidth(), window.GetHeight());
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);

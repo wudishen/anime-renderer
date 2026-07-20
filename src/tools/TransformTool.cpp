@@ -3,6 +3,7 @@
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
+#include <charconv>
 
 void TransformTool::BeginTranslate(int objectId, Scene& scene) {
     SceneObject* object = scene.FindById(objectId);
@@ -13,6 +14,7 @@ void TransformTool::BeginTranslate(int objectId, Scene& scene) {
     m_Axis = AxisConstraint::None;
     m_TargetId = objectId;
     m_OriginalTransform = object->transform;
+    ClearNumericInput();
     scene.SetSelectedId(objectId);
 }
 
@@ -25,11 +27,17 @@ void TransformTool::BeginRotate(int objectId, Scene& scene) {
     m_Axis = AxisConstraint::None;
     m_TargetId = objectId;
     m_OriginalTransform = object->transform;
+    ClearNumericInput();
     scene.SetSelectedId(objectId);
 }
 
 void TransformTool::Update(Scene& scene, const ViewBasis& view, float mouseDx, float mouseDy, bool precision) {
     if (!IsActive() || !m_TargetId.has_value()) {
+        return;
+    }
+
+    // Typed numeric offset replaces mouse movement until the buffer is cleared.
+    if (IsNumericInputActive()) {
         return;
     }
 
@@ -104,6 +112,7 @@ void TransformTool::Confirm() {
     m_Mode = TransformMode::None;
     m_Axis = AxisConstraint::None;
     m_TargetId.reset();
+    ClearNumericInput();
 }
 
 void TransformTool::Cancel(Scene& scene) {
@@ -116,13 +125,104 @@ void TransformTool::Cancel(Scene& scene) {
     m_Mode = TransformMode::None;
     m_Axis = AxisConstraint::None;
     m_TargetId.reset();
+    ClearNumericInput();
 }
 
-void TransformTool::ToggleAxisConstraint(AxisConstraint axis) {
+void TransformTool::ToggleAxisConstraint(AxisConstraint axis, Scene& scene) {
     if (!IsActive()) {
         return;
     }
+
+    // Changing or clearing the axis drops typed input and restores the start transform.
+    if (IsNumericInputActive()) {
+        if (SceneObject* object = scene.FindById(*m_TargetId)) {
+            object->transform = m_OriginalTransform;
+        }
+        ClearNumericInput();
+    }
+
     m_Axis = (m_Axis == axis) ? AxisConstraint::None : axis;
+}
+
+bool TransformTool::CanAppendNumericChar(char c) const {
+    if (c == '-') {
+        return m_NumericInput.empty();
+    }
+    if (c == '.') {
+        return m_NumericInput.find('.') == std::string::npos;
+    }
+    return c >= '0' && c <= '9';
+}
+
+bool TransformTool::AppendNumericChar(char c, Scene& scene) {
+    if (m_Mode != TransformMode::Translate || m_Axis == AxisConstraint::None || !m_TargetId.has_value()) {
+        return false;
+    }
+    if (!CanAppendNumericChar(c)) {
+        return true; // key is for numeric entry, just reject the character
+    }
+
+    m_NumericInput.push_back(c);
+    ApplyNumericOffset(scene);
+    return true;
+}
+
+bool TransformTool::BackspaceNumeric(Scene& scene) {
+    if (m_Mode != TransformMode::Translate || !IsNumericInputActive()) {
+        return false;
+    }
+
+    m_NumericInput.pop_back();
+    ApplyNumericOffset(scene);
+    return true;
+}
+
+void TransformTool::ClearNumericInput() {
+    m_NumericInput.clear();
+}
+
+void TransformTool::ApplyNumericOffset(Scene& scene) {
+    if (!m_TargetId.has_value()) {
+        return;
+    }
+
+    SceneObject* object = scene.FindById(*m_TargetId);
+    if (!object) {
+        return;
+    }
+
+    object->transform = m_OriginalTransform;
+
+    if (m_NumericInput.empty() || m_NumericInput == "-" || m_NumericInput == "." || m_NumericInput == "-.") {
+        return;
+    }
+
+    float value = 0.0f;
+    const char* begin = m_NumericInput.data();
+    const char* end = begin + m_NumericInput.size();
+    const auto result = std::from_chars(begin, end, value);
+    if (result.ec != std::errc{} || result.ptr != end) {
+        // Incomplete mid-entry (should be rare); leave at original until valid.
+        return;
+    }
+
+    glm::vec3 delta(0.0f);
+    switch (m_Axis) {
+    case AxisConstraint::X:
+        delta.x = value;
+        break;
+    case AxisConstraint::Y:
+        delta.y = value;
+        break;
+    case AxisConstraint::Z:
+        delta.z = value;
+        break;
+    case AxisConstraint::None:
+    default:
+        return;
+    }
+
+    object->AddTranslation(delta);
 }
 
 void TransformTool::DrawStatusUi() const {
@@ -139,9 +239,13 @@ void TransformTool::DrawStatusUi() const {
     case AxisConstraint::None: default: break;
     }
 
+    const bool showNumericHint =
+        m_Mode == TransformMode::Translate && m_Axis != AxisConstraint::None;
+
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float statusHeight = showNumericHint ? 96.0f : 72.0f;
     ImGui::SetNextWindowPos(
-        ImVec2(viewport->WorkPos.x + 12.0f, viewport->WorkPos.y + viewport->WorkSize.y - 72.0f),
+        ImVec2(viewport->WorkPos.x + 12.0f, viewport->WorkPos.y + viewport->WorkSize.y - statusHeight),
         ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.7f);
 
@@ -156,6 +260,13 @@ void TransformTool::DrawStatusUi() const {
     if (ImGui::Begin("##TransformStatus", nullptr, flags)) {
         ImGui::TextUnformatted(modeLabel);
         ImGui::Text("Axis: %s  |  Shift: precision", axisLabel);
+        if (showNumericHint) {
+            if (IsNumericInputActive()) {
+                ImGui::Text("Offset: %s", m_NumericInput.c_str());
+            } else {
+                ImGui::TextUnformatted("Type a number for exact offset");
+            }
+        }
         ImGui::TextUnformatted("LMB/Enter: confirm   Esc/RMB: cancel   X/Y/Z: constrain");
     }
     ImGui::End();
