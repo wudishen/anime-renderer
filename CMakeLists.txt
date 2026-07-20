@@ -60,9 +60,11 @@ add_executable(AnimeRenderer
     src/rendering/CameraBackground.cpp
     src/rendering/CameraBackgroundRenderer.cpp
     src/rendering/LoopBlinnCubic.cpp
+    src/rendering/LoopBlinnBSpline.cpp
     src/scene/Scene.cpp
     src/scene/Picking.cpp
     src/scene/CameraFactory.cpp
+    src/scene/MeshFactory.cpp
     src/io/FileDialog.cpp
     src/io/ObjLoader.cpp
     src/io/SceneFile.cpp

@@ -284,13 +284,25 @@ LoopBlinnCubicStroke& LoopBlinnCubicStroke::operator=(LoopBlinnCubicStroke&& oth
 }
 
 bool LoopBlinnCubicStroke::Build(const std::array<glm::vec2, 4>& controlPoints, float z) {
+    return BuildOnPlane(
+        controlPoints,
+        glm::vec3(0.0f, 0.0f, z),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+}
+
+bool LoopBlinnCubicStroke::BuildOnPlane(
+    const std::array<glm::vec2, 4>& controlPoints,
+    const glm::vec3& origin,
+    const glm::vec3& axisU,
+    const glm::vec3& axisV) {
     Destroy();
 
     glm::vec3 b[4];
     glm::vec3 positions[4];
     for (int i = 0; i < 4; ++i) {
         b[i] = glm::vec3(controlPoints[i].x, controlPoints[i].y, 1.0f);
-        positions[i] = glm::vec3(controlPoints[i].x, controlPoints[i].y, z);
+        positions[i] = origin + controlPoints[i].x * axisU + controlPoints[i].y * axisV;
     }
 
     glm::vec3 klm[4];

@@ -14,9 +14,9 @@
 #include "rendering/Shader.h"
 #include "rendering/Grid.h"
 #include "rendering/CameraBackgroundRenderer.h"
-#include "rendering/LoopBlinnCubic.h"
 #include "scene/Scene.h"
 #include "scene/CameraFactory.h"
+#include "scene/MeshFactory.h"
 #include "scene/Picking.h"
 #include "tools/TransformTool.h"
 #include "ui/MainMenu.h"
@@ -25,11 +25,11 @@
 
 #include <cmath>
 #include <cstdio>
-#include <array>
 #include <filesystem>
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -232,26 +232,9 @@ int main() {
     const std::string bgVertPath = ResolveShaderPath("bg.vert");
     const std::string bgFragPath = ResolveShaderPath("bg.frag");
     Shader backgroundShader(bgVertPath, bgFragPath);
-    const std::string cubicVertPath = ResolveShaderPath("cubic_bezier.vert");
-    const std::string cubicFragPath = ResolveShaderPath("cubic_bezier.frag");
-    Shader cubicBezierShader(cubicVertPath, cubicFragPath);
     CameraBackgroundRenderer backgroundRenderer;
     Grid grid(10, 1.0f);
     TransformTool transformTool;
-
-    // Experimental Loop-Blinn cubic stroke demo (XY plane, not a scene object).
-    LoopBlinnCubicStroke demoCubicStroke;
-    {
-        const std::array<glm::vec2, 4> demoCubic = {{
-            {-1.5f, 0.0f},
-            {-0.5f, 1.2f},
-            {0.5f, -1.2f},
-            {1.5f, 0.0f},
-        }};
-        if (!demoCubicStroke.Build(demoCubic, 0.02f)) {
-            std::cerr << "Failed to build Loop-Blinn demo cubic stroke\n";
-        }
-    }
 
     Scene scene;
     g_Scene = &scene;
@@ -259,16 +242,15 @@ int main() {
     SceneObject& defaultCamera = scene.AddObject(CameraFactory::Create(CameraFactory::Preset::Free, 3.0f));
     scene.SetActiveViewCameraId(defaultCamera.id);
 
-    SceneObject triangle;
-    triangle.name = "triangle";
-    triangle.vertices = {
-        {-0.5f, -0.5f, 0.0f},
-        { 0.5f, -0.5f, 0.0f},
-        { 0.0f,  0.5f, 0.0f},
-    };
-    triangle.color = {1.0f, 0.5f, 0.2f};
-    triangle.UploadMesh();
-    scene.AddObject(std::move(triangle));
+    scene.AddObject(MeshFactory::CreateTriangle());
+
+    SceneObject sphere = MeshFactory::CreateSphere();
+    sphere.SetTranslation({2.0f, 0.5f, 0.0f});
+    scene.AddObject(std::move(sphere));
+
+    SceneObject cone = MeshFactory::CreateCone();
+    cone.SetTranslation({-2.0f, 0.0f, 0.0f});
+    scene.AddObject(std::move(cone));
 
     double lastMouseX = 0.0;
     double lastMouseY = 0.0;
@@ -484,20 +466,6 @@ int main() {
             shader.SetMat4("uMVP", viewProjection * object.transform);
             shader.SetVec3("uColor", drawColor);
             object.mesh.Draw();
-        }
-
-        // Loop-Blinn cubic stroke demo (screen-space AA; blend over the scene).
-        if (demoCubicStroke.IsValid()) {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glDepthMask(GL_FALSE);
-            cubicBezierShader.Use();
-            cubicBezierShader.SetMat4("uMVP", viewProjection);
-            cubicBezierShader.SetVec3("uColor", glm::vec3(0.95f, 0.85f, 0.25f));
-            cubicBezierShader.SetFloat("uHalfWidth", 1.25f);
-            demoCubicStroke.Draw();
-            glDepthMask(GL_TRUE);
-            glDisable(GL_BLEND);
         }
 
         MainMenu::Draw(scene);

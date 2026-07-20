@@ -3,6 +3,7 @@
 #include "io/ObjLoader.h"
 #include "io/SceneFile.h"
 #include "scene/CameraFactory.h"
+#include "scene/MeshFactory.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -30,16 +31,15 @@ void ResetToDefaultScene(Scene& scene) {
     SceneObject& camera = scene.AddObject(CameraFactory::Create(CameraFactory::Preset::Free, 3.0f));
     scene.SetActiveViewCameraId(camera.id);
 
-    SceneObject triangle;
-    triangle.name = "triangle";
-    triangle.vertices = {
-        {-0.5f, -0.5f, 0.0f},
-        { 0.5f, -0.5f, 0.0f},
-        { 0.0f,  0.5f, 0.0f},
-    };
-    triangle.color = {1.0f, 0.5f, 0.2f};
-    triangle.UploadMesh();
-    scene.AddObject(std::move(triangle));
+    scene.AddObject(MeshFactory::CreateTriangle());
+
+    SceneObject sphere = MeshFactory::CreateSphere();
+    sphere.SetTranslation({2.0f, 0.5f, 0.0f});
+    scene.AddObject(std::move(sphere));
+
+    SceneObject cone = MeshFactory::CreateCone();
+    cone.SetTranslation({-2.0f, 0.0f, 0.0f});
+    scene.AddObject(std::move(cone));
 }
 
 void OnFileNew(Scene& scene) {
@@ -120,6 +120,11 @@ void AddCamera(Scene& scene, CameraFactory::Preset preset) {
     scene.SetSelectedId(added.id);
 }
 
+void AddMesh(Scene& scene, SceneObject object) {
+    SceneObject& added = scene.AddObject(std::move(object));
+    scene.SetSelectedId(added.id);
+}
+
 void DrawMessagePopup() {
     if (g_OpenMessagePopup) {
         ImGui::OpenPopup("##AppMessage");
@@ -195,6 +200,18 @@ void Draw(Scene& scene) {
         }
 
         if (ImGui::BeginMenu("Add")) {
+            if (ImGui::BeginMenu("Mesh")) {
+                if (ImGui::MenuItem("Triangle")) {
+                    AddMesh(scene, MeshFactory::CreateTriangle());
+                }
+                if (ImGui::MenuItem("Sphere")) {
+                    AddMesh(scene, MeshFactory::CreateSphere());
+                }
+                if (ImGui::MenuItem("Cone")) {
+                    AddMesh(scene, MeshFactory::CreateCone());
+                }
+                ImGui::EndMenu();
+            }
             if (ImGui::BeginMenu("Camera")) {
                 if (ImGui::MenuItem("Camera")) {
                     AddCamera(scene, CameraFactory::Preset::Free);

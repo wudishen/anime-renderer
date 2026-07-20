@@ -23,7 +23,15 @@ public:
 
     // Builds GPU triangles covering the control hull with procedural (k,l,m) coords.
     // Returns false if the cubic degenerates to a line/point (nothing to draw).
+    // Default: embed in the XY plane at constant z.
     bool Build(const std::array<glm::vec2, 4>& controlPoints, float z = 0.0f);
+
+    // Same math in 2D (u,v); positions = origin + u*axisU + v*axisV.
+    bool BuildOnPlane(
+        const std::array<glm::vec2, 4>& controlPoints,
+        const glm::vec3& origin,
+        const glm::vec3& axisU,
+        const glm::vec3& axisV);
 
     void Destroy();
     void Draw() const;

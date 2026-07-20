@@ -63,13 +63,17 @@ src/
     Grid.*                 # XZ floor grid + colored X/Z axes
     CameraBackground.*     # Per-camera reference image texture
     CameraBackgroundRenderer.*  # Screen-space textured quad
+    LoopBlinnCubic.*       # Experimental Loop-Blinn cubic stroke
+    LoopBlinnBSpline.*     # Experimental B-spline → joined cubics
     shaders/
       basic.vert/.frag     # Solid-color lit-by-uniform meshes
       bg.vert/.frag        # Background image overlay
+      cubic_bezier.*       # Loop-Blinn stroke AA
   scene/
     Scene.*                # Object list, selection, active view camera
     SceneObject.h          # Mesh | Camera + transform + optional background
     CameraFactory.*        # Create free/preset cameras + gizmo mesh
+    MeshFactory.*          # Triangle / sphere / cone primitives
     Picking.*              # Ray-triangle pick (meshes only; cameras excluded)
   tools/
     TransformTool.*        # Translate / Rotate modes (axis constraints, Shift precision)
@@ -164,15 +168,17 @@ When adding breaking schema changes: bump `kCurrentFormatVersion` and add a `Mig
 - Undo stack
 - Proper `.gitignore` if build artifacts are still tracked on GitHub
 
-## Experimental: Loop-Blinn cubic stroke (`experimental-outlines`)
+## Experimental: Loop-Blinn strokes
 
-On branch `experimental-outlines`, a hardcoded XY-plane cubic Bézier is drawn with the Loop-Blinn method (`LoopBlinnCubic.*` + `cubic_bezier.vert/.frag`): control-hull triangles carry procedural `(k,l,m)` coords; the fragment shader strokes the zero-set of `k³ − lm` with derivative-based AA. Not a scene object and not saved in `.animescene`. Look for a yellow curve near the origin over the grid.
+`LoopBlinnCubic` / `LoopBlinnBSpline` + `cubic_bezier.*` remain available for stroke experiments. No hardcoded demos or silhouette rotoscope are wired into the app loop currently.
+
+Default scene primitives: triangle, sphere (@ +X), cone (@ −X) via `MeshFactory`. **Add → Mesh** can spawn more.
 
 ## Quick health check after clone
 
 1. Configure + Debug build succeeds
-2. Run exe → see grid, triangle, `[View] Camera` in list
+2. Run exe → see grid, triangle, sphere, cone, `[View] Camera` in list
 3. Add → Camera → Top Camera → Go to View
 4. Select a camera → Upload background image → adjust opacity/position/scale
 5. File → Save As → Open the file again
-6. On `experimental-outlines`: also see the yellow Loop-Blinn cubic stroke demo
+6. Add → Mesh → Sphere / Cone works
