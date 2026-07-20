@@ -59,6 +59,7 @@ add_executable(AnimeRenderer
     src/rendering/Grid.cpp
     src/rendering/CameraBackground.cpp
     src/rendering/CameraBackgroundRenderer.cpp
+    src/rendering/LoopBlinnCubic.cpp
     src/scene/Scene.cpp
     src/scene/Picking.cpp
     src/scene/CameraFactory.cpp
@@ -101,5 +102,7 @@ add_custom_command(TARGET AnimeRenderer POST_BUILD
             ${CMAKE_SOURCE_DIR}/src/rendering/shaders/basic.frag
             ${CMAKE_SOURCE_DIR}/src/rendering/shaders/bg.vert
             ${CMAKE_SOURCE_DIR}/src/rendering/shaders/bg.frag
+            ${CMAKE_SOURCE_DIR}/src/rendering/shaders/cubic_bezier.vert
+            ${CMAKE_SOURCE_DIR}/src/rendering/shaders/cubic_bezier.frag
             $<TARGET_FILE_DIR:AnimeRenderer>/shaders
 )
