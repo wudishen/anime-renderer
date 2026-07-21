@@ -72,14 +72,19 @@ CubicType Classify(float d1, float d2, float d3, float& discrOut) {
     return CubicType::Serpentine;
 }
 
-bool ComputeKlm(const glm::vec3 b[4], glm::vec3 klm[4]) {
+void ComputeDCoefficients(const glm::vec3 b[4], float& d1, float& d2, float& d3) {
     glm::vec3 c[4];
     BezierToPower(b, c);
+    d1 = -Det3(c[0], c[2], c[3]);
+    d2 = Det3(c[0], c[1], c[3]);
+    d3 = -Det3(c[0], c[1], c[2]);
+}
 
-    // di from Loop-Blinn (integral cubic, d0 ≈ 0).
-    const float d1 = -Det3(c[0], c[2], c[3]);
-    const float d2 = Det3(c[0], c[1], c[3]);
-    const float d3 = -Det3(c[0], c[1], c[2]);
+bool ComputeKlm(const glm::vec3 b[4], glm::vec3 klm[4]) {
+    float d1 = 0.0f;
+    float d2 = 0.0f;
+    float d3 = 0.0f;
+    ComputeDCoefficients(b, d1, d2, d3);
 
     float discr = 0.0f;
     const CubicType type = Classify(d1, d2, d3, discr);
@@ -91,27 +96,25 @@ bool ComputeKlm(const glm::vec3 b[4], glm::vec3 klm[4]) {
     case CubicType::Degenerate:
         return false;
 
+    case CubicType::CuspAtInfinity: {
+        // d1≈0, d2≠0: cusp at parametric infinity (common for symmetric S-curves).
+        const float tl = d3;
+        const float sl = 3.0f * d2;
+        F[0] = glm::vec4(tl, -sl, 0.0f, 0.0f);
+        F[1] = glm::vec4(tl * tl * tl, -3.0f * sl * tl * tl, 3.0f * sl * sl * tl, -sl * sl * sl);
+        F[2] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        F[3] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+        break;
+    }
+
     case CubicType::Quadratic: {
         // Degree-elevated quadratic coords so cubic shader evaluates k(k^2 - l).
-        // Bézier (k,l,m): (0,0,1), (1/3,0,1), (2/3,1/3,1), (1,1,1) then scale.
         const float sign = (d3 < 0.0f) ? -1.0f : 1.0f;
         klm[0] = sign * glm::vec3(0.0f, 0.0f, 1.0f);
         klm[1] = sign * glm::vec3(1.0f / 3.0f, 0.0f, 1.0f);
         klm[2] = sign * glm::vec3(2.0f / 3.0f, 1.0f / 3.0f, 1.0f);
         klm[3] = sign * glm::vec3(1.0f, 1.0f, 1.0f);
         return true;
-    }
-
-    case CubicType::CuspAtInfinity: {
-        // [tl,sl] = [d3, 3 d2], [tm,sm] = [1,0]
-        const float tl = d3;
-        const float sl = 3.0f * d2;
-        // k = L, l = L^3, m = 1  (n unused)
-        F[0] = glm::vec4(tl, -sl, 0.0f, 0.0f);          // k
-        F[1] = glm::vec4(tl * tl * tl, -3.0f * sl * tl * tl, 3.0f * sl * sl * tl, -sl * sl * sl); // l
-        F[2] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);        // m = 1
-        F[3] = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);        // n
-        break;
     }
 
     case CubicType::Serpentine: {
@@ -122,7 +125,6 @@ bool ComputeKlm(const glm::vec3 b[4], glm::vec3 klm[4]) {
         const float tm = d2 - invSqrt3 * sqrtTerm;
         const float sm = 2.0f * d1;
 
-        // k = L M, l = L^3, m = M^3, n = 1
         F[0] = glm::vec4(tl * tm, -(sm * tl + sl * tm), sl * sm, 0.0f);
         F[1] = glm::vec4(tl * tl * tl, -3.0f * sl * tl * tl, 3.0f * sl * sl * tl, -sl * sl * sl);
         F[2] = glm::vec4(tm * tm * tm, -3.0f * sm * tm * tm, 3.0f * sm * sm * tm, -sm * sm * sm);
@@ -137,7 +139,6 @@ bool ComputeKlm(const glm::vec3 b[4], glm::vec3 klm[4]) {
         const float te = d2 - sqrtTerm;
         const float se = 2.0f * d1;
 
-        // k = D E, l = D^2 E, m = D E^2, n = 1
         F[0] = glm::vec4(td * te, -(se * td + sd * te), sd * se, 0.0f);
         F[1] = glm::vec4(
             td * td * te,
@@ -160,7 +161,6 @@ bool ComputeKlm(const glm::vec3 b[4], glm::vec3 klm[4]) {
         klm[i] = glm::vec3(bezierCoeffs[0][i], bezierCoeffs[1][i], bezierCoeffs[2][i]);
     }
 
-    // Orientation flip (does not change the stroke zero-set, but keeps fill convention).
     if ((type == CubicType::Serpentine || type == CubicType::Loop) && d1 < 0.0f) {
         for (int i = 0; i < 4; ++i) {
             klm[i].x = -klm[i].x;

@@ -14,6 +14,8 @@
 #include "rendering/Shader.h"
 #include "rendering/Grid.h"
 #include "rendering/CameraBackgroundRenderer.h"
+#include "rendering/LoopBlinnCubic.h"
+#include "rendering/LoopBlinnBSpline.h"
 #include "scene/Scene.h"
 #include "scene/CameraFactory.h"
 #include "scene/MeshFactory.h"
@@ -25,6 +27,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <array>
 #include <filesystem>
 #include <iostream>
 #include <optional>
@@ -34,6 +37,54 @@
 namespace fs = std::filesystem;
 
 static Scene* g_Scene = nullptr;
+
+// Normalized viewport coords: (0,0)=top-left, (1,1)=bottom-right. Converted to pixels on rebuild.
+static glm::vec2 ScreenNormToPixel(const glm::vec2& n, int width, int height) {
+    return {n.x * static_cast<float>(width), n.y * static_cast<float>(height)};
+}
+
+static bool RebuildScreenSpaceCurveDemos(
+    LoopBlinnCubicStroke& bezierStroke,
+    LoopBlinnBSplineStroke& bsplineStroke,
+    int width,
+    int height) {
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const std::array<glm::vec2, 4> bezierNorm = {{
+        {0.20f, 0.38f},
+        {0.35f, 0.18f},
+        {0.65f, 0.58f},
+        {0.80f, 0.38f},
+    }};
+    std::array<glm::vec2, 4> bezierPx{};
+    for (int i = 0; i < 4; ++i) {
+        bezierPx[i] = ScreenNormToPixel(bezierNorm[i], width, height);
+    }
+    if (!bezierStroke.Build(bezierPx, 0.0f)) {
+        std::cerr << "Failed to build screen-space cubic Bézier stroke\n";
+    }
+
+    const std::vector<glm::vec2> bsplineNorm = {
+        {0.12f, 0.72f},
+        {0.28f, 0.55f},
+        {0.42f, 0.82f},
+        {0.58f, 0.60f},
+        {0.72f, 0.78f},
+        {0.88f, 0.68f},
+    };
+    std::vector<glm::vec2> bsplinePx;
+    bsplinePx.reserve(bsplineNorm.size());
+    for (const glm::vec2& n : bsplineNorm) {
+        bsplinePx.push_back(ScreenNormToPixel(n, width, height));
+    }
+    if (!bsplineStroke.Build(bsplinePx, 0.0f)) {
+        std::cerr << "Failed to build screen-space B-spline stroke\n";
+    }
+
+    return bezierStroke.IsValid() || bsplineStroke.IsValid();
+}
 
 static fs::path ExecutableDir() {
 #ifdef _WIN32
@@ -232,9 +283,25 @@ int main() {
     const std::string bgVertPath = ResolveShaderPath("bg.vert");
     const std::string bgFragPath = ResolveShaderPath("bg.frag");
     Shader backgroundShader(bgVertPath, bgFragPath);
+    const std::string cubicVertPath = ResolveShaderPath("cubic_bezier.vert");
+    const std::string cubicFragPath = ResolveShaderPath("cubic_bezier.frag");
+    Shader cubicBezierShader(cubicVertPath, cubicFragPath);
     CameraBackgroundRenderer backgroundRenderer;
     Grid grid(10, 1.0f);
     TransformTool transformTool;
+
+    // Hardcoded screen-space curve annotations (pixel CPs; rebuilt on resize).
+    LoopBlinnCubicStroke demoBezierStroke;
+    LoopBlinnBSplineStroke demoBSplineStroke;
+    int curveDemoWidth = 0;
+    int curveDemoHeight = 0;
+    RebuildScreenSpaceCurveDemos(
+        demoBezierStroke,
+        demoBSplineStroke,
+        window.GetWidth(),
+        window.GetHeight());
+    curveDemoWidth = window.GetWidth();
+    curveDemoHeight = window.GetHeight();
 
     Scene scene;
     g_Scene = &scene;
@@ -466,6 +533,44 @@ int main() {
             shader.SetMat4("uMVP", viewProjection * object.transform);
             shader.SetVec3("uColor", drawColor);
             object.mesh.Draw();
+        }
+
+        // Screen-space Loop-Blinn annotations (pixel CPs + ortho; not world geometry).
+        const int fbWidth = window.GetWidth();
+        const int fbHeight = window.GetHeight();
+        if (fbWidth != curveDemoWidth || fbHeight != curveDemoHeight) {
+            RebuildScreenSpaceCurveDemos(demoBezierStroke, demoBSplineStroke, fbWidth, fbHeight);
+            curveDemoWidth = fbWidth;
+            curveDemoHeight = fbHeight;
+        }
+
+        if (demoBezierStroke.IsValid() || demoBSplineStroke.IsValid()) {
+            const glm::mat4 screenOrtho = glm::ortho(
+                0.0f,
+                static_cast<float>(fbWidth),
+                static_cast<float>(fbHeight),
+                0.0f,
+                -1.0f,
+                1.0f);
+
+            glDisable(GL_DEPTH_TEST);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            cubicBezierShader.Use();
+            cubicBezierShader.SetMat4("uMVP", screenOrtho);
+            cubicBezierShader.SetFloat("uHalfWidth", 1.25f);
+
+            if (demoBezierStroke.IsValid()) {
+                cubicBezierShader.SetVec3("uColor", glm::vec3(0.95f, 0.85f, 0.25f));
+                demoBezierStroke.Draw();
+            }
+            if (demoBSplineStroke.IsValid()) {
+                cubicBezierShader.SetVec3("uColor", glm::vec3(0.35f, 0.85f, 0.95f));
+                demoBSplineStroke.Draw();
+            }
+
+            glDisable(GL_BLEND);
+            glEnable(GL_DEPTH_TEST);
         }
 
         MainMenu::Draw(scene);

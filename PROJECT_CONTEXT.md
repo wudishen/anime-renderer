@@ -170,14 +170,19 @@ When adding breaking schema changes: bump `kCurrentFormatVersion` and add a `Mig
 
 ## Experimental: Loop-Blinn strokes
 
-`LoopBlinnCubic` / `LoopBlinnBSpline` + `cubic_bezier.*` remain available for stroke experiments. No hardcoded demos or silhouette rotoscope are wired into the app loop currently.
+`LoopBlinnCubic` / `LoopBlinnBSpline` + `cubic_bezier.*` draw **screen-space annotation** demos at startup (pixel control points + orthographic overlay; not scene objects, not in `.animescene`):
+
+- Yellow cubic Bézier across the upper viewport
+- Cyan uniform cubic B-spline across the lower viewport
+
+Orbiting the 3D camera does not move these overlays. They rebuild on window resize.
 
 Default scene primitives: triangle, sphere (@ +X), cone (@ −X) via `MeshFactory`. **Add → Mesh** can spawn more.
 
 ## Quick health check after clone
 
 1. Configure + Debug build succeeds
-2. Run exe → see grid, triangle, sphere, cone, `[View] Camera` in list
+2. Run exe → see grid, triangle, sphere, cone, yellow Bézier + cyan B-spline demos, `[View] Camera` in list
 3. Add → Camera → Top Camera → Go to View
 4. Select a camera → Upload background image → adjust opacity/position/scale
 5. File → Save As → Open the file again
