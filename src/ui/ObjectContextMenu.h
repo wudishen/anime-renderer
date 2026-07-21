@@ -11,6 +11,7 @@ enum class Action {
     Scale,
     Rotate,
     GoToView,
+    Edit,
 };
 
 struct ActionRequest {

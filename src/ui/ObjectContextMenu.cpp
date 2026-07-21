@@ -22,6 +22,18 @@ ActionRequest DrawMenuItems(Scene& scene, int objectId) {
 
     const SceneObject* object = scene.FindById(objectId);
     const bool isCamera = object && object->IsCamera();
+    const bool isCurve = object && object->IsCurve();
+
+    if (isCurve) {
+        if (ImGui::MenuItem("Edit")) {
+            request.action = Action::Edit;
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Delete")) {
+            request.action = Action::Delete;
+        }
+        return request;
+    }
 
     if (isCamera) {
         if (ImGui::MenuItem("Go to View")) {

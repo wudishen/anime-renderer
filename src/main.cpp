@@ -19,8 +19,10 @@
 #include "scene/Scene.h"
 #include "scene/CameraFactory.h"
 #include "scene/MeshFactory.h"
+#include "scene/CurveFactory.h"
 #include "scene/Picking.h"
 #include "tools/TransformTool.h"
+#include "tools/CurveEditTool.h"
 #include "ui/MainMenu.h"
 #include "ui/ObjectPanel.h"
 #include "ui/ObjectContextMenu.h"
@@ -38,52 +40,50 @@ namespace fs = std::filesystem;
 
 static Scene* g_Scene = nullptr;
 
-// Normalized viewport coords: (0,0)=top-left, (1,1)=bottom-right. Converted to pixels on rebuild.
 static glm::vec2 ScreenNormToPixel(const glm::vec2& n, int width, int height) {
     return {n.x * static_cast<float>(width), n.y * static_cast<float>(height)};
 }
 
-static bool RebuildScreenSpaceCurveDemos(
-    LoopBlinnCubicStroke& bezierStroke,
-    LoopBlinnBSplineStroke& bsplineStroke,
+static bool BuildScreenCurveStroke(
+    const SceneObject& object,
+    LoopBlinnCubicStroke& cubicOut,
+    LoopBlinnBSplineStroke& bsplineOut,
     int width,
     int height) {
+    cubicOut.Destroy();
+    bsplineOut.Destroy();
     if (width <= 0 || height <= 0) {
         return false;
     }
 
-    const std::array<glm::vec2, 4> bezierNorm = {{
-        {0.20f, 0.38f},
-        {0.35f, 0.18f},
-        {0.65f, 0.58f},
-        {0.80f, 0.38f},
-    }};
-    std::array<glm::vec2, 4> bezierPx{};
-    for (int i = 0; i < 4; ++i) {
-        bezierPx[i] = ScreenNormToPixel(bezierNorm[i], width, height);
-    }
-    if (!bezierStroke.Build(bezierPx, 0.0f)) {
-        std::cerr << "Failed to build screen-space cubic Bézier stroke\n";
-    }
-
-    const std::vector<glm::vec2> bsplineNorm = {
-        {0.12f, 0.72f},
-        {0.28f, 0.55f},
-        {0.42f, 0.82f},
-        {0.58f, 0.60f},
-        {0.72f, 0.78f},
-        {0.88f, 0.68f},
-    };
-    std::vector<glm::vec2> bsplinePx;
-    bsplinePx.reserve(bsplineNorm.size());
-    for (const glm::vec2& n : bsplineNorm) {
-        bsplinePx.push_back(ScreenNormToPixel(n, width, height));
-    }
-    if (!bsplineStroke.Build(bsplinePx, 0.0f)) {
-        std::cerr << "Failed to build screen-space B-spline stroke\n";
+    if (object.IsBezierCurve()) {
+        if (object.controlPoints.size() < 4) {
+            return false;
+        }
+        std::array<glm::vec2, 4> cps{};
+        for (int i = 0; i < 4; ++i) {
+            cps[i] = ScreenNormToPixel(
+                {object.controlPoints[static_cast<size_t>(i)].x,
+                 object.controlPoints[static_cast<size_t>(i)].y},
+                width,
+                height);
+        }
+        return cubicOut.Build(cps, 0.0f);
     }
 
-    return bezierStroke.IsValid() || bsplineStroke.IsValid();
+    if (object.IsBSplineCurve()) {
+        if (object.controlPoints.size() < 4) {
+            return false;
+        }
+        std::vector<glm::vec2> cps;
+        cps.reserve(object.controlPoints.size());
+        for (const glm::vec3& cp : object.controlPoints) {
+            cps.push_back(ScreenNormToPixel({cp.x, cp.y}, width, height));
+        }
+        return bsplineOut.Build(cps, 0.0f);
+    }
+
+    return false;
 }
 
 static fs::path ExecutableDir() {
@@ -202,16 +202,29 @@ static void ScrollCallback(GLFWwindow* /*window*/, double /*xoffset*/, double yo
     }
 }
 
+static std::vector<glm::vec3> MakeHandleQuadVertices(float halfExtent) {
+    // Axis-aligned quad in the screen XY plane (z=0) so it survives pixel ortho near/far.
+    const float h = halfExtent;
+    return {
+        {-h, -h, 0.0f}, {h, -h, 0.0f}, {h, h, 0.0f},
+        {-h, -h, 0.0f}, {h, h, 0.0f}, {-h, h, 0.0f},
+    };
+}
+
 static void HandleObjectAction(
     const ObjectContextMenu::ActionRequest& request,
     Scene& scene,
-    TransformTool& transformTool) {
+    TransformTool& transformTool,
+    CurveEditTool& curveEditTool) {
     if (request.action == ObjectContextMenu::Action::None) {
         return;
     }
 
     if (transformTool.IsActive()) {
         transformTool.Cancel(scene);
+    }
+    if (curveEditTool.IsActive()) {
+        curveEditTool.End();
     }
 
     switch (request.action) {
@@ -233,6 +246,9 @@ static void HandleObjectAction(
             scene.SetActiveViewCameraId(request.objectId);
             scene.SetSelectedId(request.objectId);
         }
+        break;
+    case ObjectContextMenu::Action::Edit:
+        curveEditTool.Begin(request.objectId, scene);
         break;
     case ObjectContextMenu::Action::None:
     default:
@@ -289,19 +305,14 @@ int main() {
     CameraBackgroundRenderer backgroundRenderer;
     Grid grid(10, 1.0f);
     TransformTool transformTool;
+    CurveEditTool curveEditTool;
 
-    // Hardcoded screen-space curve annotations (pixel CPs; rebuilt on resize).
-    LoopBlinnCubicStroke demoBezierStroke;
-    LoopBlinnBSplineStroke demoBSplineStroke;
-    int curveDemoWidth = 0;
-    int curveDemoHeight = 0;
-    RebuildScreenSpaceCurveDemos(
-        demoBezierStroke,
-        demoBSplineStroke,
-        window.GetWidth(),
-        window.GetHeight());
-    curveDemoWidth = window.GetWidth();
-    curveDemoHeight = window.GetHeight();
+    Mesh controlPointHandle;
+    controlPointHandle.Upload(MakeHandleQuadVertices(7.0f)); // ~14px square in screen ortho
+
+    // Scratch strokes for screen-space scene curve annotations.
+    LoopBlinnCubicStroke screenCubicStroke;
+    LoopBlinnBSplineStroke screenBSplineStroke;
 
     Scene scene;
     g_Scene = &scene;
@@ -310,14 +321,6 @@ int main() {
     scene.SetActiveViewCameraId(defaultCamera.id);
 
     scene.AddObject(MeshFactory::CreateTriangle());
-
-    SceneObject sphere = MeshFactory::CreateSphere();
-    sphere.SetTranslation({2.0f, 0.5f, 0.0f});
-    scene.AddObject(std::move(sphere));
-
-    SceneObject cone = MeshFactory::CreateCone();
-    cone.SetTranslation({-2.0f, 0.0f, 0.0f});
-    scene.AddObject(std::move(cone));
 
     double lastMouseX = 0.0;
     double lastMouseY = 0.0;
@@ -452,6 +455,105 @@ int main() {
                     transformTool.Cancel(scene);
                 }
             }
+        } else if (curveEditTool.IsActive()) {
+            if (!ImGui::GetIO().WantTextInput) {
+                if (keyBackspace && !wasKeyBackspace) {
+                    curveEditTool.BackspaceNumeric(scene);
+                }
+                if (keyMinus && !wasKeyMinus) {
+                    curveEditTool.AppendNumericChar('-', scene);
+                }
+                if (keyPeriod && !wasKeyPeriod) {
+                    curveEditTool.AppendNumericChar('.', scene);
+                }
+                for (int digit = 0; digit <= 9; ++digit) {
+                    if ((digitDown[digit] && !wasDigitKey[digit]) ||
+                        (kpDigitDown[digit] && !wasKpDigitKey[digit])) {
+                        curveEditTool.AppendNumericChar(static_cast<char>('0' + digit), scene);
+                    }
+                }
+
+                if (keyX && !wasKeyX) {
+                    curveEditTool.ToggleAxisConstraint(AxisConstraint::X, scene);
+                }
+                if (keyY && !wasKeyY) {
+                    curveEditTool.ToggleAxisConstraint(AxisConstraint::Y, scene);
+                }
+                if (keyEnter && !wasKeyEnter) {
+                    if (curveEditTool.IsTranslating()) {
+                        curveEditTool.ConfirmTranslate();
+                    }
+                }
+                if (keyEscape && !wasKeyEscape) {
+                    if (curveEditTool.IsTranslating()) {
+                        curveEditTool.CancelTranslate(scene);
+                    } else {
+                        curveEditTool.End();
+                    }
+                }
+            }
+
+            if (!MainMenu::WantCaptureMouse()) {
+                if (middleDown) {
+                    NavigateActiveView(scene, dx, dy, true, false);
+                } else if (curveEditTool.IsTranslating()) {
+                    curveEditTool.Update(
+                        scene,
+                        dx,
+                        dy,
+                        window.GetWidth(),
+                        window.GetHeight(),
+                        shiftDown);
+                }
+
+                if (leftDown && !wasLeftDown) {
+                    if (curveEditTool.IsTranslating()) {
+                        curveEditTool.ConfirmTranslate();
+                    } else if (curveEditTool.GetTargetId().has_value()) {
+                        if (const SceneObject* curve = scene.FindById(*curveEditTool.GetTargetId())) {
+                            if (const auto point = Picking::PickControlPoint(
+                                    *curve,
+                                    static_cast<float>(mouseX),
+                                    static_cast<float>(mouseY),
+                                    window.GetWidth(),
+                                    window.GetHeight())) {
+                                curveEditTool.BeginTranslatePoint(*point, scene);
+                            }
+                        }
+                    }
+                }
+
+                if (rightDown && !wasRightDown) {
+                    if (curveEditTool.IsTranslating()) {
+                        curveEditTool.CancelTranslate(scene);
+                    } else {
+                        // Allow opening context menu on the curve while editing.
+                        rightDragDistance = 0.0f;
+                        rightOrbitActive = false;
+                        rightClickTarget = pickAtCursor();
+                        if (rightClickTarget.has_value()) {
+                            scene.SetSelectedId(rightClickTarget);
+                        }
+                    }
+                }
+
+                if (rightDown && !curveEditTool.IsTranslating()) {
+                    rightDragDistance += std::fabs(dx) + std::fabs(dy);
+                    if (rightDragDistance > 4.0f) {
+                        rightOrbitActive = true;
+                        NavigateActiveView(scene, dx, dy, false, true);
+                    }
+                }
+
+                if (!rightDown && wasRightDown && !curveEditTool.IsTranslating()) {
+                    if (!rightOrbitActive && rightClickTarget.has_value()) {
+                        ObjectContextMenu::Open(*rightClickTarget);
+                    }
+                    rightClickTarget.reset();
+                    rightOrbitActive = false;
+                    rightDragDistance = 0.0f;
+                }
+            }
         } else if (!MainMenu::WantCaptureMouse()) {
             if (middleDown) {
                 NavigateActiveView(scene, dx, dy, true, false);
@@ -524,6 +626,9 @@ int main() {
             if (object.IsCamera() && activeViewId.has_value() && object.id == *activeViewId) {
                 continue;
             }
+            if (object.IsCurve()) {
+                continue;
+            }
 
             glm::vec3 drawColor = object.color;
             if (scene.IsSelected(object.id)) {
@@ -535,16 +640,10 @@ int main() {
             object.mesh.Draw();
         }
 
-        // Screen-space Loop-Blinn annotations (pixel CPs + ortho; not world geometry).
+        // Screen-space curve annotations (normalized CPs → pixels + ortho overlay).
         const int fbWidth = window.GetWidth();
         const int fbHeight = window.GetHeight();
-        if (fbWidth != curveDemoWidth || fbHeight != curveDemoHeight) {
-            RebuildScreenSpaceCurveDemos(demoBezierStroke, demoBSplineStroke, fbWidth, fbHeight);
-            curveDemoWidth = fbWidth;
-            curveDemoHeight = fbHeight;
-        }
-
-        if (demoBezierStroke.IsValid() || demoBSplineStroke.IsValid()) {
+        {
             const glm::mat4 screenOrtho = glm::ortho(
                 0.0f,
                 static_cast<float>(fbWidth),
@@ -560,13 +659,24 @@ int main() {
             cubicBezierShader.SetMat4("uMVP", screenOrtho);
             cubicBezierShader.SetFloat("uHalfWidth", 1.25f);
 
-            if (demoBezierStroke.IsValid()) {
-                cubicBezierShader.SetVec3("uColor", glm::vec3(0.95f, 0.85f, 0.25f));
-                demoBezierStroke.Draw();
-            }
-            if (demoBSplineStroke.IsValid()) {
-                cubicBezierShader.SetVec3("uColor", glm::vec3(0.35f, 0.85f, 0.95f));
-                demoBSplineStroke.Draw();
+            for (const SceneObject& object : scene.GetObjects()) {
+                if (!object.IsCurve()) {
+                    continue;
+                }
+                if (!BuildScreenCurveStroke(object, screenCubicStroke, screenBSplineStroke, fbWidth, fbHeight)) {
+                    continue;
+                }
+
+                glm::vec3 drawColor = object.color;
+                if (scene.IsSelected(object.id)) {
+                    drawColor = {1.0f, 0.85f, 0.2f};
+                }
+                cubicBezierShader.SetVec3("uColor", drawColor);
+                if (object.IsBezierCurve() && screenCubicStroke.IsValid()) {
+                    screenCubicStroke.Draw();
+                } else if (object.IsBSplineCurve() && screenBSplineStroke.IsValid()) {
+                    screenBSplineStroke.Draw();
+                }
             }
 
             glDisable(GL_BLEND);
@@ -580,8 +690,38 @@ int main() {
         } else {
             ObjectContextMenu::Draw(scene);
         }
-        HandleObjectAction(action, scene, transformTool);
+        HandleObjectAction(action, scene, transformTool, curveEditTool);
+
+        // Screen-space CP handles (drawn after Edit is applied so they appear immediately).
+        if (curveEditTool.IsActive() && curveEditTool.GetTargetId().has_value()) {
+            if (const SceneObject* curve = scene.FindById(*curveEditTool.GetTargetId())) {
+                const int w = window.GetWidth();
+                const int h = window.GetHeight();
+                const glm::mat4 screenOrtho = glm::ortho(
+                    0.0f, static_cast<float>(w), static_cast<float>(h), 0.0f, -1.0f, 1.0f);
+                glDisable(GL_DEPTH_TEST);
+                glDisable(GL_BLEND);
+                shader.Use();
+                for (size_t i = 0; i < curve->controlPoints.size(); ++i) {
+                    const bool selectedPoint =
+                        curveEditTool.GetSelectedPoint().has_value() &&
+                        *curveEditTool.GetSelectedPoint() == static_cast<int>(i);
+                    const glm::vec3 handleColor =
+                        selectedPoint ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(1.0f, 1.0f, 1.0f);
+                    const glm::vec2 pixel = ScreenNormToPixel(
+                        {curve->controlPoints[i].x, curve->controlPoints[i].y}, w, h);
+                    const glm::mat4 handleModel =
+                        glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f));
+                    shader.SetMat4("uMVP", screenOrtho * handleModel);
+                    shader.SetVec3("uColor", handleColor);
+                    controlPointHandle.Draw();
+                }
+                glEnable(GL_DEPTH_TEST);
+            }
+        }
+
         transformTool.DrawStatusUi();
+        curveEditTool.DrawStatusUi();
 
         if (const SceneObject* activeCamera = scene.GetActiveViewCamera()) {
             const ImGuiViewport* viewport = ImGui::GetMainViewport();

@@ -59,6 +59,10 @@ std::string TypeToString(SceneObjectType type) {
     switch (type) {
     case SceneObjectType::Camera:
         return "camera";
+    case SceneObjectType::BezierCurve:
+        return "bezier";
+    case SceneObjectType::BSplineCurve:
+        return "bspline";
     case SceneObjectType::Mesh:
     default:
         return "mesh";
@@ -73,6 +77,10 @@ bool MigrateToNextVersion(json& root, int fromVersion, std::string& error) {
     case 1:
         // v1 -> v2: optional camera background fields; no data rewrite required.
         root["formatVersion"] = 2;
+        return true;
+    case 2:
+        // v2 -> v3: optional bezier/bspline objects with controlPoints.
+        root["formatVersion"] = 3;
         return true;
     default:
         error = "No migration path from format version " + std::to_string(fromVersion) + ".";
@@ -158,6 +166,12 @@ Result Save(const Scene& scene, const std::string& path) {
                 bg["enabled"] = object.background.enabled;
                 entry["background"] = std::move(bg);
             }
+        } else if (object.IsCurve()) {
+            json cps = json::array();
+            for (const glm::vec3& cp : object.controlPoints) {
+                cps.push_back(Vec3ToJson(cp));
+            }
+            entry["controlPoints"] = std::move(cps);
         } else {
             json vertices = json::array();
             for (const glm::vec3& v : object.vertices) {
@@ -239,6 +253,29 @@ Result Load(Scene& scene, const std::string& path) {
                     object.vertices.push_back(vertex);
                 }
             }
+        } else if (type == "bezier" || type == "bspline") {
+            object.type =
+                (type == "bezier") ? SceneObjectType::BezierCurve : SceneObjectType::BSplineCurve;
+            object.color = (type == "bezier") ? glm::vec3{0.95f, 0.85f, 0.25f}
+                                              : glm::vec3{0.35f, 0.85f, 0.95f};
+            if (entry.contains("controlPoints") && entry["controlPoints"].is_array()) {
+                for (const json& cpJson : entry["controlPoints"]) {
+                    glm::vec3 cp{};
+                    if (!Vec3FromJson(cpJson, cp, error, "Control point")) {
+                        return {false, error, warning};
+                    }
+                    object.controlPoints.push_back(cp);
+                }
+            }
+            const size_t minCps = object.IsBezierCurve() ? 4 : 4;
+            if (object.controlPoints.size() < minCps) {
+                if (!warning.empty()) {
+                    warning += "\n";
+                }
+                warning += "Skipped curve '" + object.name + "' with too few control points.";
+                ++skippedUnknown;
+                continue;
+            }
         } else {
             // Forward-compatible: ignore object kinds this build does not understand.
             ++skippedUnknown;
@@ -290,7 +327,9 @@ Result Load(Scene& scene, const std::string& path) {
             }
         }
 
-        object.UploadMesh();
+        if (!object.IsCurve()) {
+            object.UploadMesh();
+        }
         loaded.AddObject(std::move(object));
     }
 

@@ -65,6 +65,7 @@ add_executable(AnimeRenderer
     src/scene/Picking.cpp
     src/scene/CameraFactory.cpp
     src/scene/MeshFactory.cpp
+    src/scene/CurveFactory.cpp
     src/io/FileDialog.cpp
     src/io/ObjLoader.cpp
     src/io/SceneFile.cpp
@@ -72,6 +73,7 @@ add_executable(AnimeRenderer
     src/ui/ObjectPanel.cpp
     src/ui/ObjectContextMenu.cpp
     src/tools/TransformTool.cpp
+    src/tools/CurveEditTool.cpp
     src/glad.c
 )
 

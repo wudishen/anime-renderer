@@ -3,6 +3,7 @@
 #include "io/ObjLoader.h"
 #include "io/SceneFile.h"
 #include "scene/CameraFactory.h"
+#include "scene/CurveFactory.h"
 #include "scene/MeshFactory.h"
 
 #include <imgui.h>
@@ -32,14 +33,6 @@ void ResetToDefaultScene(Scene& scene) {
     scene.SetActiveViewCameraId(camera.id);
 
     scene.AddObject(MeshFactory::CreateTriangle());
-
-    SceneObject sphere = MeshFactory::CreateSphere();
-    sphere.SetTranslation({2.0f, 0.5f, 0.0f});
-    scene.AddObject(std::move(sphere));
-
-    SceneObject cone = MeshFactory::CreateCone();
-    cone.SetTranslation({-2.0f, 0.0f, 0.0f});
-    scene.AddObject(std::move(cone));
 }
 
 void OnFileNew(Scene& scene) {
@@ -209,6 +202,15 @@ void Draw(Scene& scene) {
                 }
                 if (ImGui::MenuItem("Cone")) {
                     AddMesh(scene, MeshFactory::CreateCone());
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Curve")) {
+                if (ImGui::MenuItem("Bezier Curve")) {
+                    AddMesh(scene, CurveFactory::CreateBezier());
+                }
+                if (ImGui::MenuItem("B-Spline Curve")) {
+                    AddMesh(scene, CurveFactory::CreateBSpline());
                 }
                 ImGui::EndMenu();
             }

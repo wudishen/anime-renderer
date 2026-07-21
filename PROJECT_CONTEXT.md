@@ -63,20 +63,22 @@ src/
     Grid.*                 # XZ floor grid + colored X/Z axes
     CameraBackground.*     # Per-camera reference image texture
     CameraBackgroundRenderer.*  # Screen-space textured quad
-    LoopBlinnCubic.*       # Experimental Loop-Blinn cubic stroke
-    LoopBlinnBSpline.*     # Experimental B-spline → joined cubics
+    LoopBlinnCubic.*       # Loop-Blinn cubic stroke
+    LoopBlinnBSpline.*     # B-spline → joined cubics
     shaders/
       basic.vert/.frag     # Solid-color lit-by-uniform meshes
       bg.vert/.frag        # Background image overlay
       cubic_bezier.*       # Loop-Blinn stroke AA
   scene/
     Scene.*                # Object list, selection, active view camera
-    SceneObject.h          # Mesh | Camera + transform + optional background
+    SceneObject.h          # Mesh | Camera | Bezier | BSpline + transform
     CameraFactory.*        # Create free/preset cameras + gizmo mesh
     MeshFactory.*          # Triangle / sphere / cone primitives
-    Picking.*              # Ray-triangle pick (meshes only; cameras excluded)
+    CurveFactory.*         # Default cubic Bézier / B-spline curves
+    Picking.*              # Ray pick meshes + curves + control points
   tools/
     TransformTool.*        # Translate / Rotate modes (axis constraints, Shift precision)
+    CurveEditTool.*        # Edit curve control points (translate, X/Y, numeric)
   io/
     FileDialog.*           # Win32 open/save for obj/scene/image
     ObjLoader.*            # Wavefront OBJ → mesh (needs `f` faces)
@@ -118,7 +120,8 @@ include/                   # glad + stb_image.h
 | Context: Go to View | Only on cameras — make that camera the active viewport |
 | File → Save / Open | `.animescene` |
 | File → Import | `.obj` |
-| Add → Camera → … | Free + Top/Bottom/Left/Right/Front/Back presets |
+| Add → Mesh / Curve / Camera → … | Primitives, Bézier/B-spline, camera presets |
+| Context: Edit | Curves only — show CPs; click a point to translate; **X/Y** constrain; type offset; LMB/Enter confirm; Esc exits |
 
 ## Camera background images (reference)
 
@@ -135,7 +138,7 @@ Saved on the camera as `background` in `.animescene` (image path + params). Load
 
 - Extension: `.animescene` (JSON)
 - Magic: `"AnimeRendererScene"`
-- Current `formatVersion`: **2** (v1→v2 migrator exists; background fields optional)
+- Current `formatVersion`: **3** (v1→v2→v3 migrator; curves with `controlPoints`)
 - Compatibility rules in `src/io/SceneFile.*`:
   - Older file → migrate forward in memory, warn
   - Newer file than app → refuse with clear error
@@ -168,16 +171,17 @@ When adding breaking schema changes: bump `kCurrentFormatVersion` and add a `Mig
 - Undo stack
 - Proper `.gitignore` if build artifacts are still tracked on GitHub
 
-## Experimental: Loop-Blinn strokes
+## Curves (Bezier / B-spline)
 
-`LoopBlinnCubic` / `LoopBlinnBSpline` + `cubic_bezier.*` draw **screen-space annotation** demos at startup (pixel control points + orthographic overlay; not scene objects, not in `.animescene`):
+Screen-space annotations (not world geometry):
 
-- Yellow cubic Bézier across the upper viewport
-- Cyan uniform cubic B-spline across the lower viewport
+- **Add → Curve → Bezier / B-Spline** adds a viewport overlay curve (stays fixed while orbiting).
+- Control points are normalized screen coords `(0,0)=top-left … (1,1)=bottom-right`.
+- Right-click → **Edit** shows handles; drag in screen X/Y; constrain with **X/Y**; typed offsets are **pixels**.
+- Context menu is Edit / Delete only (no world Translate/Rotate).
+- Saved in `.animescene` as `type: "bezier"|"bspline"` + `controlPoints` (format v3).
 
-Orbiting the 3D camera does not move these overlays. They rebuild on window resize.
-
-Default scene primitives: triangle, sphere (@ +X), cone (@ −X) via `MeshFactory`. **Add → Mesh** can spawn more.
+Default scene: camera + one triangle.
 
 ## Quick health check after clone
 
@@ -186,4 +190,4 @@ Default scene primitives: triangle, sphere (@ +X), cone (@ −X) via `MeshFactor
 3. Add → Camera → Top Camera → Go to View
 4. Select a camera → Upload background image → adjust opacity/position/scale
 5. File → Save As → Open the file again
-6. Add → Mesh → Sphere / Cone works
+6. Add → Curve → Bezier → right-click → Edit → drag a control point; constrain with X and type a number

@@ -7,6 +7,7 @@
 namespace Picking {
 
 // Returns the closest hit object id under the cursor, or nullopt if none.
+// Curves are screen-space annotations; meshes use 3D ray-triangle tests.
 std::optional<int> PickObject(
     const Scene& scene,
     float mouseX,
@@ -16,5 +17,14 @@ std::optional<int> PickObject(
     const glm::mat4& view,
     const glm::mat4& projection,
     const glm::vec3& cameraPosition);
+
+// Pick a control point on a screen-space curve. Returns CP index, or nullopt.
+std::optional<int> PickControlPoint(
+    const SceneObject& object,
+    float mouseX,
+    float mouseY,
+    int viewportWidth,
+    int viewportHeight,
+    float handleRadiusPixels = 12.0f);
 
 } // namespace Picking

@@ -1,6 +1,9 @@
 #include "Picking.h"
 
+#include <algorithm>
+#include <cmath>
 #include <limits>
+#include <vector>
 
 namespace Picking {
 namespace {
@@ -43,6 +46,104 @@ bool RayTriangleIntersect(
     return true;
 }
 
+glm::vec2 NormToPixel(const glm::vec3& cp, int width, int height) {
+    return {
+        cp.x * static_cast<float>(width),
+        cp.y * static_cast<float>(height),
+    };
+}
+
+glm::vec2 EvalCubicBezier2(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2, const glm::vec2& p3, float t) {
+    const float u = 1.0f - t;
+    return (u * u * u) * p0 + (3.0f * u * u * t) * p1 + (3.0f * u * t * t) * p2 + (t * t * t) * p3;
+}
+
+glm::vec2 EvalBSplineSegment2(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2, const glm::vec2& p3, float t) {
+    const float t2 = t * t;
+    const float t3 = t2 * t;
+    const float b0 = (1.0f - 3.0f * t + 3.0f * t2 - t3) / 6.0f;
+    const float b1 = (4.0f - 6.0f * t2 + 3.0f * t3) / 6.0f;
+    const float b2 = (1.0f + 3.0f * t + 3.0f * t2 - 3.0f * t3) / 6.0f;
+    const float b3 = t3 / 6.0f;
+    return b0 * p0 + b1 * p1 + b2 * p2 + b3 * p3;
+}
+
+float DistPointSegmentSq(const glm::vec2& p, const glm::vec2& a, const glm::vec2& b) {
+    const glm::vec2 ab = b - a;
+    const float abLenSq = glm::dot(ab, ab);
+    if (abLenSq < 1e-12f) {
+        const glm::vec2 d = p - a;
+        return glm::dot(d, d);
+    }
+    const float u = std::clamp(glm::dot(p - a, ab) / abLenSq, 0.0f, 1.0f);
+    const glm::vec2 closest = a + ab * u;
+    const glm::vec2 d = p - closest;
+    return glm::dot(d, d);
+}
+
+bool PickScreenCurve(
+    const SceneObject& object,
+    float mouseX,
+    float mouseY,
+    int width,
+    int height,
+    float thresholdPixels,
+    float& outBestDistSq) {
+    if (!object.IsCurve() || object.controlPoints.size() < 2 || width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const glm::vec2 mouse(mouseX, mouseY);
+    const float thresholdSq = thresholdPixels * thresholdPixels;
+
+    std::vector<glm::vec2> samples;
+    samples.reserve(64);
+
+    auto pixelCp = [&](size_t i) {
+        return NormToPixel(object.controlPoints[i], width, height);
+    };
+
+    if (object.IsBezierCurve() && object.controlPoints.size() >= 4) {
+        const glm::vec2 p0 = pixelCp(0);
+        const glm::vec2 p1 = pixelCp(1);
+        const glm::vec2 p2 = pixelCp(2);
+        const glm::vec2 p3 = pixelCp(3);
+        constexpr int kSteps = 32;
+        for (int i = 0; i <= kSteps; ++i) {
+            samples.push_back(EvalCubicBezier2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
+        }
+    } else if (object.IsBSplineCurve() && object.controlPoints.size() >= 4) {
+        constexpr int kSteps = 12;
+        for (size_t seg = 0; seg + 3 < object.controlPoints.size(); ++seg) {
+            const glm::vec2 p0 = pixelCp(seg);
+            const glm::vec2 p1 = pixelCp(seg + 1);
+            const glm::vec2 p2 = pixelCp(seg + 2);
+            const glm::vec2 p3 = pixelCp(seg + 3);
+            for (int i = 0; i <= kSteps; ++i) {
+                if (seg > 0 && i == 0) {
+                    continue;
+                }
+                samples.push_back(
+                    EvalBSplineSegment2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
+            }
+        }
+    } else {
+        for (size_t i = 0; i < object.controlPoints.size(); ++i) {
+            samples.push_back(pixelCp(i));
+        }
+    }
+
+    bool hit = false;
+    for (size_t i = 0; i + 1 < samples.size(); ++i) {
+        const float distSq = DistPointSegmentSq(mouse, samples[i], samples[i + 1]);
+        if (distSq <= thresholdSq && distSq < outBestDistSq) {
+            outBestDistSq = distSq;
+            hit = true;
+        }
+    }
+    return hit;
+}
+
 } // namespace
 
 std::optional<int> PickObject(
@@ -56,6 +157,21 @@ std::optional<int> PickObject(
     const glm::vec3& cameraPosition) {
     if (viewportWidth <= 0 || viewportHeight <= 0) {
         return std::nullopt;
+    }
+
+    // Screen-space curves first (annotations sit on top of the 3D view).
+    std::optional<int> bestCurveId;
+    float bestCurveDistSq = std::numeric_limits<float>::max();
+    for (const SceneObject& object : scene.GetObjects()) {
+        if (!object.IsCurve()) {
+            continue;
+        }
+        if (PickScreenCurve(object, mouseX, mouseY, viewportWidth, viewportHeight, 10.0f, bestCurveDistSq)) {
+            bestCurveId = object.id;
+        }
+    }
+    if (bestCurveId.has_value()) {
+        return bestCurveId;
     }
 
     const float ndcX = (2.0f * mouseX) / static_cast<float>(viewportWidth) - 1.0f;
@@ -74,8 +190,7 @@ std::optional<int> PickObject(
     float bestT = std::numeric_limits<float>::max();
 
     for (const SceneObject& object : scene.GetObjects()) {
-        // Cameras are viewport bookmarks — select them from the Objects list only.
-        if (object.IsCamera() || object.vertices.size() < 3) {
+        if (object.IsCamera() || object.IsCurve() || object.vertices.size() < 3) {
             continue;
         }
 
@@ -93,6 +208,36 @@ std::optional<int> PickObject(
     }
 
     return bestId;
+}
+
+std::optional<int> PickControlPoint(
+    const SceneObject& object,
+    float mouseX,
+    float mouseY,
+    int viewportWidth,
+    int viewportHeight,
+    float handleRadiusPixels) {
+    if (!object.IsCurve() || object.controlPoints.empty() || viewportWidth <= 0 || viewportHeight <= 0) {
+        return std::nullopt;
+    }
+
+    const glm::vec2 mouse(mouseX, mouseY);
+    const float radiusSq = handleRadiusPixels * handleRadiusPixels;
+
+    std::optional<int> bestIndex;
+    float bestDistSq = std::numeric_limits<float>::max();
+
+    for (size_t i = 0; i < object.controlPoints.size(); ++i) {
+        const glm::vec2 pixel = NormToPixel(object.controlPoints[i], viewportWidth, viewportHeight);
+        const glm::vec2 d = mouse - pixel;
+        const float distSq = glm::dot(d, d);
+        if (distSq <= radiusSq && distSq < bestDistSq) {
+            bestDistSq = distSq;
+            bestIndex = static_cast<int>(i);
+        }
+    }
+
+    return bestIndex;
 }
 
 } // namespace Picking

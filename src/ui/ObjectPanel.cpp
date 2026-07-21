@@ -77,6 +77,8 @@ ObjectContextMenu::ActionRequest Draw(Scene& scene) {
                 std::string label = object.name;
                 if (object.IsCamera()) {
                     label = std::string(isActiveView ? "[View] " : "[Cam] ") + label;
+                } else if (object.IsCurve()) {
+                    label = std::string("[Curve] ") + label;
                 }
 
                 if (ImGui::Selectable(label.c_str(), selected)) {
