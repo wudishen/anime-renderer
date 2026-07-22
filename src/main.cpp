@@ -20,6 +20,7 @@
 #include "scene/CameraFactory.h"
 #include "scene/MeshFactory.h"
 #include "scene/CurveFactory.h"
+#include "scene/BSplineFit.h"
 #include "scene/Picking.h"
 #include "tools/TransformTool.h"
 #include "tools/CurveEditTool.h"
@@ -236,7 +237,12 @@ static void HandleObjectAction(
         transformTool.BeginTranslate(request.objectId, scene);
         break;
     case ObjectContextMenu::Action::Scale:
-        std::cout << "Scale tool is not implemented yet." << std::endl;
+        if (const SceneObject* object = scene.FindById(request.objectId);
+            object && object->IsBSplineCurve()) {
+            transformTool.BeginScale(request.objectId, scene);
+        } else {
+            std::cout << "Scale tool is not implemented yet." << std::endl;
+        }
         break;
     case ObjectContextMenu::Action::Rotate:
         transformTool.BeginRotate(request.objectId, scene);
@@ -340,6 +346,7 @@ int main() {
     bool wasKeyBackspace = false;
     bool wasKeyMinus = false;
     bool wasKeyPeriod = false;
+    bool wasKeyTab = false;
     bool wasDigitKey[10] = {};
     bool wasKpDigitKey[10] = {};
 
@@ -377,6 +384,7 @@ int main() {
         const bool keyPeriod =
             glfwGetKey(glfwWindow, GLFW_KEY_PERIOD) == GLFW_PRESS ||
             glfwGetKey(glfwWindow, GLFW_KEY_KP_DECIMAL) == GLFW_PRESS;
+        const bool keyTab = glfwGetKey(glfwWindow, GLFW_KEY_TAB) == GLFW_PRESS;
         bool digitDown[10] = {};
         bool kpDigitDown[10] = {};
         for (int digit = 0; digit <= 9; ++digit) {
@@ -444,7 +452,14 @@ int main() {
                 if (middleDown) {
                     NavigateActiveView(scene, dx, dy, true, false);
                 } else {
-                    transformTool.Update(scene, viewBasis, dx, dy, shiftDown);
+                    transformTool.Update(
+                        scene,
+                        viewBasis,
+                        dx,
+                        dy,
+                        shiftDown,
+                        window.GetWidth(),
+                        window.GetHeight());
                 }
 
                 if (leftDown && !wasLeftDown) {
@@ -479,6 +494,9 @@ int main() {
                 if (keyY && !wasKeyY) {
                     curveEditTool.ToggleAxisConstraint(AxisConstraint::Y, scene);
                 }
+                if (keyTab && !wasKeyTab) {
+                    curveEditTool.ToggleHandleMode(scene);
+                }
                 if (keyEnter && !wasKeyEnter) {
                     if (curveEditTool.IsTranslating()) {
                         curveEditTool.ConfirmTranslate();
@@ -511,13 +529,19 @@ int main() {
                         curveEditTool.ConfirmTranslate();
                     } else if (curveEditTool.GetTargetId().has_value()) {
                         if (const SceneObject* curve = scene.FindById(*curveEditTool.GetTargetId())) {
-                            if (const auto point = Picking::PickControlPoint(
+                            const std::optional<CurvePointKind> kindFilter =
+                                curve->IsBSplineCurve()
+                                    ? std::optional<CurvePointKind>(curveEditTool.GetHandleMode())
+                                    : std::optional<CurvePointKind>(CurvePointKind::Control);
+                            if (const auto handle = Picking::PickCurveHandle(
                                     *curve,
                                     static_cast<float>(mouseX),
                                     static_cast<float>(mouseY),
                                     window.GetWidth(),
-                                    window.GetHeight())) {
-                                curveEditTool.BeginTranslatePoint(*point, scene);
+                                    window.GetHeight(),
+                                    12.0f,
+                                    kindFilter)) {
+                                curveEditTool.BeginTranslatePoint(handle->kind, handle->index, scene);
                             }
                         }
                     }
@@ -603,6 +627,7 @@ int main() {
         wasKeyBackspace = keyBackspace;
         wasKeyMinus = keyMinus;
         wasKeyPeriod = keyPeriod;
+        wasKeyTab = keyTab;
         for (int digit = 0; digit <= 9; ++digit) {
             wasDigitKey[digit] = digitDown[digit];
             wasKpDigitKey[digit] = kpDigitDown[digit];
@@ -684,15 +709,21 @@ int main() {
         }
 
         MainMenu::Draw(scene);
-        ObjectContextMenu::ActionRequest action = ObjectPanel::Draw(scene);
+        ObjectContextMenu::ActionRequest action = ObjectPanel::Draw(
+            scene,
+            curveEditTool.IsActive() ? curveEditTool.GetTargetId() : std::nullopt);
         if (action.action == ObjectContextMenu::Action::None) {
-            action = ObjectContextMenu::Draw(scene);
+            action = ObjectContextMenu::Draw(
+                scene,
+                curveEditTool.IsActive() ? curveEditTool.GetTargetId() : std::nullopt);
         } else {
-            ObjectContextMenu::Draw(scene);
+            ObjectContextMenu::Draw(
+                scene,
+                curveEditTool.IsActive() ? curveEditTool.GetTargetId() : std::nullopt);
         }
         HandleObjectAction(action, scene, transformTool, curveEditTool);
 
-        // Screen-space CP handles (drawn after Edit is applied so they appear immediately).
+        // Screen-space handles (drawn after Edit is applied so they appear immediately).
         if (curveEditTool.IsActive() && curveEditTool.GetTargetId().has_value()) {
             if (const SceneObject* curve = scene.FindById(*curveEditTool.GetTargetId())) {
                 const int w = window.GetWidth();
@@ -702,26 +733,57 @@ int main() {
                 glDisable(GL_DEPTH_TEST);
                 glDisable(GL_BLEND);
                 shader.Use();
-                for (size_t i = 0; i < curve->controlPoints.size(); ++i) {
-                    const bool selectedPoint =
-                        curveEditTool.GetSelectedPoint().has_value() &&
-                        *curveEditTool.GetSelectedPoint() == static_cast<int>(i);
-                    const glm::vec3 handleColor =
-                        selectedPoint ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(1.0f, 1.0f, 1.0f);
-                    const glm::vec2 pixel = ScreenNormToPixel(
-                        {curve->controlPoints[i].x, curve->controlPoints[i].y}, w, h);
-                    const glm::mat4 handleModel =
-                        glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f));
-                    shader.SetMat4("uMVP", screenOrtho * handleModel);
-                    shader.SetVec3("uColor", handleColor);
-                    controlPointHandle.Draw();
+
+                const auto selectedKind = curveEditTool.GetSelectedPointKind();
+                const auto selectedIndex = curveEditTool.GetSelectedPoint();
+                const CurvePointKind handleMode = curveEditTool.GetHandleMode();
+
+                // Draw only the active handle kind (control vs fit).
+                if (curve->IsBSplineCurve() && handleMode == CurvePointKind::Fit) {
+                    const std::vector<glm::vec2> fitPoints =
+                        BSplineFit::FitPointsFromControls(curve->controlPoints);
+                    for (size_t i = 0; i < fitPoints.size(); ++i) {
+                        const bool selectedPoint =
+                            selectedKind.has_value() &&
+                            *selectedKind == CurvePointKind::Fit &&
+                            selectedIndex.has_value() &&
+                            *selectedIndex == static_cast<int>(i);
+                        const glm::vec3 handleColor =
+                            selectedPoint ? glm::vec3(1.0f, 0.35f, 0.35f)
+                                          : glm::vec3(0.25f, 0.95f, 0.95f);
+                        const glm::vec2 pixel = ScreenNormToPixel(fitPoints[i], w, h);
+                        const glm::mat4 handleModel =
+                            glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
+                            glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(0.0f, 0.0f, 1.0f)) *
+                            glm::scale(glm::mat4(1.0f), glm::vec3(0.85f, 0.85f, 1.0f));
+                        shader.SetMat4("uMVP", screenOrtho * handleModel);
+                        shader.SetVec3("uColor", handleColor);
+                        controlPointHandle.Draw();
+                    }
+                } else {
+                    for (size_t i = 0; i < curve->controlPoints.size(); ++i) {
+                        const bool selectedPoint =
+                            selectedKind.has_value() &&
+                            *selectedKind == CurvePointKind::Control &&
+                            selectedIndex.has_value() &&
+                            *selectedIndex == static_cast<int>(i);
+                        const glm::vec3 handleColor =
+                            selectedPoint ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(1.0f, 1.0f, 1.0f);
+                        const glm::vec2 pixel = ScreenNormToPixel(
+                            {curve->controlPoints[i].x, curve->controlPoints[i].y}, w, h);
+                        const glm::mat4 handleModel =
+                            glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f));
+                        shader.SetMat4("uMVP", screenOrtho * handleModel);
+                        shader.SetVec3("uColor", handleColor);
+                        controlPointHandle.Draw();
+                    }
                 }
                 glEnable(GL_DEPTH_TEST);
             }
         }
 
         transformTool.DrawStatusUi();
-        curveEditTool.DrawStatusUi();
+        curveEditTool.DrawStatusUi(scene);
 
         if (const SceneObject* activeCamera = scene.GetActiveViewCamera()) {
             const ImGuiViewport* viewport = ImGui::GetMainViewport();

@@ -1,5 +1,7 @@
 #include "Picking.h"
 
+#include "BSplineFit.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -217,6 +219,23 @@ std::optional<int> PickControlPoint(
     int viewportWidth,
     int viewportHeight,
     float handleRadiusPixels) {
+    if (const auto hit = PickCurveHandle(
+            object, mouseX, mouseY, viewportWidth, viewportHeight, handleRadiusPixels)) {
+        if (hit->kind == CurvePointKind::Control) {
+            return hit->index;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<CurveHandleHit> PickCurveHandle(
+    const SceneObject& object,
+    float mouseX,
+    float mouseY,
+    int viewportWidth,
+    int viewportHeight,
+    float handleRadiusPixels,
+    std::optional<CurvePointKind> kindFilter) {
     if (!object.IsCurve() || object.controlPoints.empty() || viewportWidth <= 0 || viewportHeight <= 0) {
         return std::nullopt;
     }
@@ -224,20 +243,40 @@ std::optional<int> PickControlPoint(
     const glm::vec2 mouse(mouseX, mouseY);
     const float radiusSq = handleRadiusPixels * handleRadiusPixels;
 
-    std::optional<int> bestIndex;
+    std::optional<CurveHandleHit> best;
     float bestDistSq = std::numeric_limits<float>::max();
 
-    for (size_t i = 0; i < object.controlPoints.size(); ++i) {
-        const glm::vec2 pixel = NormToPixel(object.controlPoints[i], viewportWidth, viewportHeight);
+    auto consider = [&](CurvePointKind kind, int index, const glm::vec2& pixel) {
+        if (kindFilter.has_value() && *kindFilter != kind) {
+            return;
+        }
         const glm::vec2 d = mouse - pixel;
         const float distSq = glm::dot(d, d);
         if (distSq <= radiusSq && distSq < bestDistSq) {
             bestDistSq = distSq;
-            bestIndex = static_cast<int>(i);
+            best = CurveHandleHit{kind, index};
+        }
+    };
+
+    for (size_t i = 0; i < object.controlPoints.size(); ++i) {
+        consider(
+            CurvePointKind::Control,
+            static_cast<int>(i),
+            NormToPixel(object.controlPoints[i], viewportWidth, viewportHeight));
+    }
+
+    if (object.IsBSplineCurve()) {
+        const std::vector<glm::vec2> fitPoints = BSplineFit::FitPointsFromControls(object.controlPoints);
+        for (size_t i = 0; i < fitPoints.size(); ++i) {
+            consider(
+                CurvePointKind::Fit,
+                static_cast<int>(i),
+                {fitPoints[i].x * static_cast<float>(viewportWidth),
+                 fitPoints[i].y * static_cast<float>(viewportHeight)});
         }
     }
 
-    return bestIndex;
+    return best;
 }
 
 } // namespace Picking

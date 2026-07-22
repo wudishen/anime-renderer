@@ -66,6 +66,7 @@ add_executable(AnimeRenderer
     src/scene/CameraFactory.cpp
     src/scene/MeshFactory.cpp
     src/scene/CurveFactory.cpp
+    src/scene/BSplineFit.cpp
     src/io/FileDialog.cpp
     src/io/ObjLoader.cpp
     src/io/SceneFile.cpp

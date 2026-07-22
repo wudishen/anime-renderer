@@ -16,17 +16,33 @@ void Open(int objectId) {
     g_OpenRequested = true;
 }
 
-ActionRequest DrawMenuItems(Scene& scene, int objectId) {
+ActionRequest DrawMenuItems(Scene& scene, int objectId, std::optional<int> curveEditObjectId) {
     ActionRequest request;
     request.objectId = objectId;
 
     const SceneObject* object = scene.FindById(objectId);
     const bool isCamera = object && object->IsCamera();
     const bool isCurve = object && object->IsCurve();
+    const bool isBSpline = object && object->IsBSplineCurve();
+    const bool editingThisCurve =
+        curveEditObjectId.has_value() && *curveEditObjectId == objectId;
 
     if (isCurve) {
         if (ImGui::MenuItem("Edit")) {
             request.action = Action::Edit;
+        }
+        if (isBSpline) {
+            ImGui::BeginDisabled(editingThisCurve);
+            if (ImGui::MenuItem("Translate")) {
+                request.action = Action::Translate;
+            }
+            if (ImGui::MenuItem("Scale")) {
+                request.action = Action::Scale;
+            }
+            ImGui::EndDisabled();
+            if (editingThisCurve) {
+                ImGui::TextDisabled("Exit Edit to translate/scale");
+            }
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Delete")) {
@@ -59,7 +75,7 @@ ActionRequest DrawMenuItems(Scene& scene, int objectId) {
     return request;
 }
 
-ActionRequest Draw(Scene& scene) {
+ActionRequest Draw(Scene& scene, std::optional<int> curveEditObjectId) {
     ActionRequest request;
 
     if (g_OpenRequested) {
@@ -69,7 +85,7 @@ ActionRequest Draw(Scene& scene) {
 
     if (ImGui::BeginPopup("##ObjectContextMenu")) {
         if (g_TargetId.has_value()) {
-            request = DrawMenuItems(scene, *g_TargetId);
+            request = DrawMenuItems(scene, *g_TargetId, curveEditObjectId);
             if (request.action != Action::None) {
                 ImGui::CloseCurrentPopup();
                 g_TargetId.reset();

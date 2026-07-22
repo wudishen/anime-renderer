@@ -3,6 +3,7 @@
 
 #include <imgui.h>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 namespace ObjectPanel {
@@ -43,7 +44,7 @@ void DrawCameraBackgroundControls(SceneObject& camera) {
 
 } // namespace
 
-ObjectContextMenu::ActionRequest Draw(Scene& scene) {
+ObjectContextMenu::ActionRequest Draw(Scene& scene, std::optional<int> curveEditObjectId) {
     constexpr float kPanelWidth = 260.0f;
     ObjectContextMenu::ActionRequest request;
 
@@ -88,7 +89,7 @@ ObjectContextMenu::ActionRequest Draw(Scene& scene) {
                 if (ImGui::BeginPopupContextItem("object_item_context")) {
                     scene.SetSelectedId(object.id);
                     const ObjectContextMenu::ActionRequest itemRequest =
-                        ObjectContextMenu::DrawMenuItems(scene, object.id);
+                        ObjectContextMenu::DrawMenuItems(scene, object.id, curveEditObjectId);
                     if (itemRequest.action != ObjectContextMenu::Action::None) {
                         request = itemRequest;
                         ImGui::CloseCurrentPopup();

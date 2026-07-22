@@ -1,5 +1,7 @@
 #include "CurveEditTool.h"
 
+#include "scene/BSplineFit.h"
+
 #include <imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -16,6 +18,10 @@ void CurveEditTool::Begin(int objectId, Scene& scene) {
     m_Axis = AxisConstraint::None;
     m_TargetId = objectId;
     m_SelectedPoint.reset();
+    m_SelectedKind = CurvePointKind::Control;
+    m_HandleMode = CurvePointKind::Control;
+    m_OriginalControls.clear();
+    m_WorkingFitPoints.clear();
     ClearNumericInput();
     scene.SetSelectedId(objectId);
 }
@@ -26,28 +32,64 @@ void CurveEditTool::End() {
     m_Axis = AxisConstraint::None;
     m_TargetId.reset();
     m_SelectedPoint.reset();
+    m_SelectedKind = CurvePointKind::Control;
+    m_HandleMode = CurvePointKind::Control;
+    m_OriginalControls.clear();
+    m_WorkingFitPoints.clear();
     ClearNumericInput();
+}
+
+void CurveEditTool::RestoreOriginalControls(Scene& scene) {
+    if (!m_TargetId.has_value() || m_OriginalControls.empty()) {
+        return;
+    }
+    if (SceneObject* object = scene.FindById(*m_TargetId)) {
+        object->controlPoints = m_OriginalControls;
+    }
+}
+
+bool CurveEditTool::ApplyWorkingFitPoints(Scene& scene) {
+    if (!m_TargetId.has_value()) {
+        return false;
+    }
+    SceneObject* object = scene.FindById(*m_TargetId);
+    if (!object || !object->IsBSplineCurve()) {
+        return false;
+    }
+
+    std::vector<glm::vec3> solved = BSplineFit::SolveControlsFromFitPoints(m_WorkingFitPoints);
+    if (solved.empty()) {
+        return false;
+    }
+    object->controlPoints = std::move(solved);
+    return true;
 }
 
 void CurveEditTool::CancelTranslate(Scene& scene) {
     if (m_Translating) {
-        if (glm::vec3* point = GetSelectedControlPoint(scene)) {
+        if (m_SelectedKind == CurvePointKind::Fit) {
+            RestoreOriginalControls(scene);
+        } else if (glm::vec3* point = GetSelectedControlPoint(scene)) {
             *point = m_OriginalPoint;
         }
     }
     m_Translating = false;
     m_Axis = AxisConstraint::None;
+    m_WorkingFitPoints.clear();
     ClearNumericInput();
 }
 
-bool CurveEditTool::BeginTranslatePoint(int pointIndex, Scene& scene) {
+bool CurveEditTool::BeginTranslatePoint(CurvePointKind kind, int pointIndex, Scene& scene) {
     if (!m_Active || !m_TargetId.has_value()) {
         return false;
     }
 
     SceneObject* object = scene.FindById(*m_TargetId);
-    if (!object || pointIndex < 0 ||
-        pointIndex >= static_cast<int>(object->controlPoints.size())) {
+    if (!object) {
+        return false;
+    }
+
+    if (object->IsBSplineCurve() && kind != m_HandleMode) {
         return false;
     }
 
@@ -55,8 +97,30 @@ bool CurveEditTool::BeginTranslatePoint(int pointIndex, Scene& scene) {
         CancelTranslate(scene);
     }
 
-    m_SelectedPoint = pointIndex;
-    m_OriginalPoint = object->controlPoints[static_cast<size_t>(pointIndex)];
+    if (kind == CurvePointKind::Control) {
+        if (pointIndex < 0 || pointIndex >= static_cast<int>(object->controlPoints.size())) {
+            return false;
+        }
+        m_SelectedKind = CurvePointKind::Control;
+        m_SelectedPoint = pointIndex;
+        m_OriginalPoint = object->controlPoints[static_cast<size_t>(pointIndex)];
+        m_OriginalControls.clear();
+        m_WorkingFitPoints.clear();
+    } else {
+        if (!object->IsBSplineCurve()) {
+            return false;
+        }
+        m_WorkingFitPoints = BSplineFit::FitPointsFromControls(object->controlPoints);
+        if (pointIndex < 0 || pointIndex >= static_cast<int>(m_WorkingFitPoints.size())) {
+            m_WorkingFitPoints.clear();
+            return false;
+        }
+        m_SelectedKind = CurvePointKind::Fit;
+        m_SelectedPoint = pointIndex;
+        m_OriginalFitPoint = m_WorkingFitPoints[static_cast<size_t>(pointIndex)];
+        m_OriginalControls = object->controlPoints;
+    }
+
     m_Translating = true;
     m_Axis = AxisConstraint::None;
     ClearNumericInput();
@@ -64,7 +128,8 @@ bool CurveEditTool::BeginTranslatePoint(int pointIndex, Scene& scene) {
 }
 
 glm::vec3* CurveEditTool::GetSelectedControlPoint(Scene& scene) {
-    if (!m_TargetId.has_value() || !m_SelectedPoint.has_value()) {
+    if (!m_TargetId.has_value() || !m_SelectedPoint.has_value() ||
+        m_SelectedKind != CurvePointKind::Control) {
         return nullptr;
     }
     SceneObject* object = scene.FindById(*m_TargetId);
@@ -89,12 +154,6 @@ void CurveEditTool::Update(
         return;
     }
 
-    glm::vec3* point = GetSelectedControlPoint(scene);
-    if (!point) {
-        CancelTranslate(scene);
-        return;
-    }
-
     if (viewportWidth <= 0 || viewportHeight <= 0) {
         return;
     }
@@ -110,20 +169,49 @@ void CurveEditTool::Update(
     const float dxNorm = (mouseDx * scale) / static_cast<float>(viewportWidth);
     const float dyNorm = (mouseDy * scale) / static_cast<float>(viewportHeight);
 
-    switch (m_Axis) {
-    case AxisConstraint::X:
-        point->x += dxNorm;
-        break;
-    case AxisConstraint::Y:
-        point->y += dyNorm;
-        break;
-    case AxisConstraint::Z:
+    auto applyDelta = [&](float& x, float& y) {
+        switch (m_Axis) {
+        case AxisConstraint::X:
+            x += dxNorm;
+            break;
+        case AxisConstraint::Y:
+            y += dyNorm;
+            break;
+        case AxisConstraint::Z:
+            return false;
+        case AxisConstraint::None:
+        default:
+            x += dxNorm;
+            y += dyNorm;
+            break;
+        }
+        return true;
+    };
+
+    if (m_SelectedKind == CurvePointKind::Fit) {
+        if (!m_SelectedPoint.has_value() ||
+            *m_SelectedPoint < 0 ||
+            *m_SelectedPoint >= static_cast<int>(m_WorkingFitPoints.size())) {
+            CancelTranslate(scene);
+            return;
+        }
+        glm::vec2& fit = m_WorkingFitPoints[static_cast<size_t>(*m_SelectedPoint)];
+        if (!applyDelta(fit.x, fit.y)) {
+            return;
+        }
+        if (!ApplyWorkingFitPoints(scene)) {
+            CancelTranslate(scene);
+        }
         return;
-    case AxisConstraint::None:
-    default:
-        point->x += dxNorm;
-        point->y += dyNorm;
-        break;
+    }
+
+    glm::vec3* point = GetSelectedControlPoint(scene);
+    if (!point) {
+        CancelTranslate(scene);
+        return;
+    }
+    if (!applyDelta(point->x, point->y)) {
+        return;
     }
     point->z = 0.0f;
 }
@@ -131,6 +219,8 @@ void CurveEditTool::Update(
 void CurveEditTool::ConfirmTranslate() {
     m_Translating = false;
     m_Axis = AxisConstraint::None;
+    m_WorkingFitPoints.clear();
+    m_OriginalControls.clear();
     ClearNumericInput();
 }
 
@@ -144,7 +234,14 @@ void CurveEditTool::ToggleAxisConstraint(AxisConstraint axis, Scene& scene) {
     }
 
     if (IsNumericInputActive()) {
-        if (glm::vec3* point = GetSelectedControlPoint(scene)) {
+        if (m_SelectedKind == CurvePointKind::Fit) {
+            RestoreOriginalControls(scene);
+            if (m_SelectedPoint.has_value() &&
+                *m_SelectedPoint >= 0 &&
+                *m_SelectedPoint < static_cast<int>(m_WorkingFitPoints.size())) {
+                m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls);
+            }
+        } else if (glm::vec3* point = GetSelectedControlPoint(scene)) {
             *point = m_OriginalPoint;
         }
         ClearNumericInput();
@@ -191,14 +288,17 @@ void CurveEditTool::ClearNumericInput() {
 }
 
 void CurveEditTool::ApplyNumericOffset(Scene& scene, int viewportWidth, int viewportHeight) {
-    glm::vec3* point = GetSelectedControlPoint(scene);
-    if (!point) {
-        return;
-    }
-
-    *point = m_OriginalPoint;
-
     if (m_NumericInput.empty() || m_NumericInput == "-" || m_NumericInput == "." || m_NumericInput == "-.") {
+        if (m_SelectedKind == CurvePointKind::Fit) {
+            if (m_SelectedPoint.has_value() &&
+                *m_SelectedPoint >= 0 &&
+                *m_SelectedPoint < static_cast<int>(m_WorkingFitPoints.size())) {
+                m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls);
+                ApplyWorkingFitPoints(scene);
+            }
+        } else if (glm::vec3* point = GetSelectedControlPoint(scene)) {
+            *point = m_OriginalPoint;
+        }
         return;
     }
 
@@ -213,6 +313,39 @@ void CurveEditTool::ApplyNumericOffset(Scene& scene, int viewportWidth, int view
     // Typed value is in pixels along the constrained screen axis.
     const float w = static_cast<float>(std::max(viewportWidth, 1));
     const float h = static_cast<float>(std::max(viewportHeight, 1));
+
+    if (m_SelectedKind == CurvePointKind::Fit) {
+        if (!m_SelectedPoint.has_value() || m_OriginalControls.empty()) {
+            return;
+        }
+        m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls);
+        if (*m_SelectedPoint >= static_cast<int>(m_WorkingFitPoints.size())) {
+            return;
+        }
+        glm::vec2& fit = m_WorkingFitPoints[static_cast<size_t>(*m_SelectedPoint)];
+        fit = m_OriginalFitPoint;
+        switch (m_Axis) {
+        case AxisConstraint::X:
+            fit.x += value / w;
+            break;
+        case AxisConstraint::Y:
+            fit.y += value / h;
+            break;
+        case AxisConstraint::Z:
+        case AxisConstraint::None:
+        default:
+            break;
+        }
+        ApplyWorkingFitPoints(scene);
+        return;
+    }
+
+    glm::vec3* point = GetSelectedControlPoint(scene);
+    if (!point) {
+        return;
+    }
+
+    *point = m_OriginalPoint;
     switch (m_Axis) {
     case AxisConstraint::X:
         point->x += value / w;
@@ -228,13 +361,102 @@ void CurveEditTool::ApplyNumericOffset(Scene& scene, int viewportWidth, int view
     point->z = 0.0f;
 }
 
-void CurveEditTool::DrawStatusUi() const {
+void CurveEditTool::ClearPointSelection() {
+    m_SelectedPoint.reset();
+    m_SelectedKind = CurvePointKind::Control;
+    m_OriginalControls.clear();
+    m_WorkingFitPoints.clear();
+}
+
+void CurveEditTool::SetHandleMode(CurvePointKind mode, Scene& scene) {
+    if (!m_Active || !m_TargetId.has_value()) {
+        return;
+    }
+
+    SceneObject* object = scene.FindById(*m_TargetId);
+    if (!object) {
+        return;
+    }
+
+    if (mode == CurvePointKind::Fit && !object->IsBSplineCurve()) {
+        return;
+    }
+
+    if (m_HandleMode == mode) {
+        return;
+    }
+
+    if (m_Translating) {
+        CancelTranslate(scene);
+    }
+
+    m_HandleMode = mode;
+    ClearPointSelection();
+    ClearNumericInput();
+}
+
+void CurveEditTool::ToggleHandleMode(Scene& scene) {
+    if (!m_Active || !m_TargetId.has_value()) {
+        return;
+    }
+    SceneObject* object = scene.FindById(*m_TargetId);
+    if (!object || !object->IsBSplineCurve()) {
+        return;
+    }
+    SetHandleMode(
+        m_HandleMode == CurvePointKind::Control ? CurvePointKind::Fit : CurvePointKind::Control,
+        scene);
+}
+
+bool CurveEditTool::AddSegment(Scene& scene) {
+    if (!m_Active || !m_TargetId.has_value()) {
+        return false;
+    }
+    SceneObject* object = scene.FindById(*m_TargetId);
+    if (!object || !object->IsBSplineCurve()) {
+        return false;
+    }
+    if (m_Translating) {
+        CancelTranslate(scene);
+    }
+    if (!BSplineFit::AddSegment(object->controlPoints)) {
+        return false;
+    }
+    ClearPointSelection();
+    ClearNumericInput();
+    return true;
+}
+
+bool CurveEditTool::RemoveSegment(Scene& scene) {
+    if (!m_Active || !m_TargetId.has_value()) {
+        return false;
+    }
+    SceneObject* object = scene.FindById(*m_TargetId);
+    if (!object || !object->IsBSplineCurve()) {
+        return false;
+    }
+    if (m_Translating) {
+        CancelTranslate(scene);
+    }
+    if (!BSplineFit::RemoveSegment(object->controlPoints)) {
+        return false;
+    }
+    ClearPointSelection();
+    ClearNumericInput();
+    return true;
+}
+
+void CurveEditTool::DrawStatusUi(Scene& scene) {
     if (!m_Active) {
         return;
     }
 
+    SceneObject* object = m_TargetId.has_value() ? scene.FindById(*m_TargetId) : nullptr;
+    const bool isBSpline = object && object->IsBSplineCurve();
+    const int segments = isBSpline ? BSplineFit::SegmentCount(object->controlPoints) : 0;
+
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    const float statusHeight = m_Translating ? 110.0f : 72.0f;
+    const float statusHeight = m_Translating ? 110.0f : (isBSpline ? 140.0f : 88.0f);
     ImGui::SetNextWindowPos(
         ImVec2(viewport->WorkPos.x + 12.0f, viewport->WorkPos.y + viewport->WorkSize.y - statusHeight),
         ImGuiCond_Always);
@@ -250,10 +472,59 @@ void CurveEditTool::DrawStatusUi() const {
 
     if (ImGui::Begin("##CurveEditStatus", nullptr, flags)) {
         ImGui::TextUnformatted("Edit screen-space curve");
+        if (isBSpline) {
+            ImGui::Text("Segments: %d", segments);
+            ImGui::SameLine();
+            ImGui::BeginDisabled(segments <= 1);
+            if (ImGui::SmallButton("-##SegMinus")) {
+                RemoveSegment(scene);
+            }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(object->controlPoints.size() >= 64);
+            if (ImGui::SmallButton("+##SegPlus")) {
+                AddSegment(scene);
+            }
+            ImGui::EndDisabled();
+
+            const bool controlMode = m_HandleMode == CurvePointKind::Control;
+            if (controlMode) {
+                ImGui::BeginDisabled(true);
+            }
+            if (ImGui::SmallButton("Control##HandleControl")) {
+                SetHandleMode(CurvePointKind::Control, scene);
+            }
+            if (controlMode) {
+                ImGui::EndDisabled();
+            }
+            ImGui::SameLine();
+            if (!controlMode) {
+                ImGui::BeginDisabled(true);
+            }
+            if (ImGui::SmallButton("Fit##HandleFit")) {
+                SetHandleMode(CurvePointKind::Fit, scene);
+            }
+            if (!controlMode) {
+                ImGui::EndDisabled();
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("Tab to toggle");
+        }
         if (!m_Translating) {
-            ImGui::TextUnformatted("Click a control point to move it");
+            if (isBSpline) {
+                if (m_HandleMode == CurvePointKind::Fit) {
+                    ImGui::TextUnformatted("Mode: fit points (on curve)");
+                } else {
+                    ImGui::TextUnformatted("Mode: control points");
+                }
+            } else {
+                ImGui::TextUnformatted("Click a control point to move it");
+            }
+            ImGui::TextUnformatted("Click a handle to move it");
             ImGui::TextUnformatted("Esc: exit edit mode");
         } else {
+            const char* kindLabel =
+                m_SelectedKind == CurvePointKind::Fit ? "Fit" : "Control";
             const char* axisLabel = "Free (XY)";
             switch (m_Axis) {
             case AxisConstraint::X: axisLabel = "X (pixels)"; break;
@@ -261,7 +532,8 @@ void CurveEditTool::DrawStatusUi() const {
             case AxisConstraint::Z:
             case AxisConstraint::None: default: break;
             }
-            ImGui::Text("Point %d  |  Axis: %s  |  Shift: precision",
+            ImGui::Text("%s %d  |  Axis: %s  |  Shift: precision",
+                        kindLabel,
                         m_SelectedPoint.has_value() ? *m_SelectedPoint : -1,
                         axisLabel);
             if (m_Axis == AxisConstraint::X || m_Axis == AxisConstraint::Y) {
