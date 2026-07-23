@@ -24,6 +24,7 @@
 #include "scene/Picking.h"
 #include "tools/TransformTool.h"
 #include "tools/CurveEditTool.h"
+#include "tools/CameraEditTool.h"
 #include "ui/MainMenu.h"
 #include "ui/ObjectPanel.h"
 #include "ui/ObjectContextMenu.h"
@@ -216,7 +217,8 @@ static void HandleObjectAction(
     const ObjectContextMenu::ActionRequest& request,
     Scene& scene,
     TransformTool& transformTool,
-    CurveEditTool& curveEditTool) {
+    CurveEditTool& curveEditTool,
+    CameraEditTool& cameraEditTool) {
     if (request.action == ObjectContextMenu::Action::None) {
         return;
     }
@@ -226,6 +228,9 @@ static void HandleObjectAction(
     }
     if (curveEditTool.IsActive()) {
         curveEditTool.End();
+    }
+    if (cameraEditTool.IsActive()) {
+        cameraEditTool.End();
     }
 
     switch (request.action) {
@@ -254,7 +259,13 @@ static void HandleObjectAction(
         }
         break;
     case ObjectContextMenu::Action::Edit:
-        curveEditTool.Begin(request.objectId, scene);
+        if (const SceneObject* object = scene.FindById(request.objectId)) {
+            if (object->IsCamera()) {
+                cameraEditTool.Begin(request.objectId, scene);
+            } else if (object->IsCurve()) {
+                curveEditTool.Begin(request.objectId, scene);
+            }
+        }
         break;
     case ObjectContextMenu::Action::None:
     default:
@@ -312,6 +323,7 @@ int main() {
     Grid grid(10, 1.0f);
     TransformTool transformTool;
     CurveEditTool curveEditTool;
+    CameraEditTool cameraEditTool;
 
     Mesh controlPointHandle;
     controlPointHandle.Upload(MakeHandleQuadVertices(7.0f)); // ~14px square in screen ortho
@@ -578,6 +590,44 @@ int main() {
                     rightDragDistance = 0.0f;
                 }
             }
+        } else if (cameraEditTool.IsActive()) {
+            if (!ImGui::GetIO().WantTextInput) {
+                if (keyEscape && !wasKeyEscape) {
+                    cameraEditTool.End();
+                }
+            }
+
+            if (!MainMenu::WantCaptureMouse()) {
+                if (middleDown) {
+                    NavigateActiveView(scene, dx, dy, true, false);
+                }
+
+                if (rightDown && !wasRightDown) {
+                    rightDragDistance = 0.0f;
+                    rightOrbitActive = false;
+                    rightClickTarget = pickAtCursor();
+                    if (rightClickTarget.has_value()) {
+                        scene.SetSelectedId(rightClickTarget);
+                    }
+                }
+
+                if (rightDown) {
+                    rightDragDistance += std::fabs(dx) + std::fabs(dy);
+                    if (rightDragDistance > 4.0f) {
+                        rightOrbitActive = true;
+                        NavigateActiveView(scene, dx, dy, false, true);
+                    }
+                }
+
+                if (!rightDown && wasRightDown) {
+                    if (!rightOrbitActive && rightClickTarget.has_value()) {
+                        ObjectContextMenu::Open(*rightClickTarget);
+                    }
+                    rightClickTarget.reset();
+                    rightOrbitActive = false;
+                    rightDragDistance = 0.0f;
+                }
+            }
         } else if (!MainMenu::WantCaptureMouse()) {
             if (middleDown) {
                 NavigateActiveView(scene, dx, dy, true, false);
@@ -721,7 +771,7 @@ int main() {
                 scene,
                 curveEditTool.IsActive() ? curveEditTool.GetTargetId() : std::nullopt);
         }
-        HandleObjectAction(action, scene, transformTool, curveEditTool);
+        HandleObjectAction(action, scene, transformTool, curveEditTool, cameraEditTool);
 
         // Screen-space handles (drawn after Edit is applied so they appear immediately).
         if (curveEditTool.IsActive() && curveEditTool.GetTargetId().has_value()) {
@@ -784,6 +834,7 @@ int main() {
 
         transformTool.DrawStatusUi();
         curveEditTool.DrawStatusUi(scene);
+        cameraEditTool.DrawStatusUi(scene);
 
         if (const SceneObject* activeCamera = scene.GetActiveViewCamera()) {
             const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -792,7 +843,9 @@ int main() {
             if (ImGui::Begin("##ActiveCameraView", nullptr,
                              ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
                                  ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav)) {
-                ImGui::Text("View: %s", activeCamera->name.c_str());
+                ImGui::Text("View: %s  |  FOV: %.1f deg",
+                            activeCamera->name.c_str(),
+                            activeCamera->cameraFovDegrees);
             }
             ImGui::End();
         }

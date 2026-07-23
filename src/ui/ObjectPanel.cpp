@@ -2,6 +2,7 @@
 #include "io/FileDialog.h"
 
 #include <imgui.h>
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -10,6 +11,14 @@ namespace ObjectPanel {
 namespace {
 
 void DrawCameraBackgroundControls(SceneObject& camera) {
+    ImGui::Separator();
+    ImGui::TextUnformatted("Camera");
+    ImGui::Spacing();
+    ImGui::SetNextItemWidth(-1.0f);
+    if (ImGui::SliderFloat("FOV (deg)", &camera.cameraFovDegrees, 1.0f, 179.0f, "%.1f")) {
+        camera.cameraFovDegrees = std::clamp(camera.cameraFovDegrees, 1.0f, 179.0f);
+    }
+
     ImGui::Separator();
     ImGui::TextUnformatted("Background Image");
     ImGui::Spacing();

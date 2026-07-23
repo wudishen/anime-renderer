@@ -75,6 +75,7 @@ add_executable(AnimeRenderer
     src/ui/ObjectContextMenu.cpp
     src/tools/TransformTool.cpp
     src/tools/CurveEditTool.cpp
+    src/tools/CameraEditTool.cpp
     src/glad.c
 )
 

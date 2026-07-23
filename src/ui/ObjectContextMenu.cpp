@@ -55,6 +55,9 @@ ActionRequest DrawMenuItems(Scene& scene, int objectId, std::optional<int> curve
         if (ImGui::MenuItem("Go to View")) {
             request.action = Action::GoToView;
         }
+        if (ImGui::MenuItem("Edit")) {
+            request.action = Action::Edit;
+        }
         ImGui::Separator();
     }
 
