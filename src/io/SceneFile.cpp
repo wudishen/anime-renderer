@@ -172,6 +172,28 @@ Result Save(const Scene& scene, const std::string& path) {
                 cps.push_back(Vec3ToJson(cp));
             }
             entry["controlPoints"] = std::move(cps);
+            if (object.IsBSplineCurve() && !object.controlPointAttachments.empty()) {
+                json attachments = json::array();
+                for (const ControlPointAttachment& a : object.controlPointAttachments) {
+                    json item;
+                    item["controlPointIndex"] = a.controlPointIndex;
+                    item["meshObjectId"] = a.meshObjectId;
+                    item["vertexIndex"] = a.vertexIndex;
+                    attachments.push_back(std::move(item));
+                }
+                entry["controlPointAttachments"] = std::move(attachments);
+            }
+            if (object.IsBSplineCurve() && !object.fitPointAttachments.empty()) {
+                json attachments = json::array();
+                for (const FitPointAttachment& a : object.fitPointAttachments) {
+                    json item;
+                    item["fitPointIndex"] = a.fitPointIndex;
+                    item["meshObjectId"] = a.meshObjectId;
+                    item["vertexIndex"] = a.vertexIndex;
+                    attachments.push_back(std::move(item));
+                }
+                entry["fitPointAttachments"] = std::move(attachments);
+            }
         } else {
             json vertices = json::array();
             for (const glm::vec3& v : object.vertices) {
@@ -275,6 +297,40 @@ Result Load(Scene& scene, const std::string& path) {
                 warning += "Skipped curve '" + object.name + "' with too few control points.";
                 ++skippedUnknown;
                 continue;
+            }
+            if (object.IsBSplineCurve() &&
+                entry.contains("controlPointAttachments") &&
+                entry["controlPointAttachments"].is_array()) {
+                for (const json& item : entry["controlPointAttachments"]) {
+                    if (!item.is_object()) {
+                        continue;
+                    }
+                    ControlPointAttachment attach;
+                    attach.controlPointIndex = item.value("controlPointIndex", -1);
+                    attach.meshObjectId = item.value("meshObjectId", -1);
+                    attach.vertexIndex = item.value("vertexIndex", -1);
+                    if (attach.controlPointIndex >= 0 &&
+                        attach.controlPointIndex < static_cast<int>(object.controlPoints.size())) {
+                        object.controlPointAttachments.push_back(attach);
+                    }
+                }
+            }
+            if (object.IsBSplineCurve() &&
+                entry.contains("fitPointAttachments") &&
+                entry["fitPointAttachments"].is_array()) {
+                for (const json& item : entry["fitPointAttachments"]) {
+                    if (!item.is_object()) {
+                        continue;
+                    }
+                    FitPointAttachment attach;
+                    attach.fitPointIndex = item.value("fitPointIndex", -1);
+                    attach.meshObjectId = item.value("meshObjectId", -1);
+                    attach.vertexIndex = item.value("vertexIndex", -1);
+                    if (attach.fitPointIndex >= 0 &&
+                        attach.fitPointIndex < object.FitPointCount()) {
+                        object.fitPointAttachments.push_back(attach);
+                    }
+                }
             }
         } else {
             // Forward-compatible: ignore object kinds this build does not understand.

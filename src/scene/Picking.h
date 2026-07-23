@@ -13,6 +13,11 @@ struct CurveHandleHit {
     int index = -1;
 };
 
+struct MeshVertexHit {
+    int objectId = -1;
+    int vertexIndex = -1;
+};
+
 // Returns the closest hit object id under the cursor, or nullopt if none.
 // Curves are screen-space annotations; meshes use 3D ray-triangle tests.
 std::optional<int> PickObject(
@@ -44,5 +49,16 @@ std::optional<CurveHandleHit> PickCurveHandle(
     int viewportHeight,
     float handleRadiusPixels = 12.0f,
     std::optional<CurvePointKind> kindFilter = std::nullopt);
+
+// Pick the closest mesh vertex by screen proximity (for CP tagging).
+std::optional<MeshVertexHit> PickMeshVertex(
+    const Scene& scene,
+    float mouseX,
+    float mouseY,
+    int viewportWidth,
+    int viewportHeight,
+    const glm::mat4& view,
+    const glm::mat4& projection,
+    float handleRadiusPixels = 14.0f);
 
 } // namespace Picking

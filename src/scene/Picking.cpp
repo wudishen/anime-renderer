@@ -1,6 +1,7 @@
 #include "Picking.h"
 
 #include "BSplineFit.h"
+#include "CurveVertexAttach.h"
 
 #include <algorithm>
 #include <cmath>
@@ -273,6 +274,51 @@ std::optional<CurveHandleHit> PickCurveHandle(
                 static_cast<int>(i),
                 {fitPoints[i].x * static_cast<float>(viewportWidth),
                  fitPoints[i].y * static_cast<float>(viewportHeight)});
+        }
+    }
+
+    return best;
+}
+
+std::optional<MeshVertexHit> PickMeshVertex(
+    const Scene& scene,
+    float mouseX,
+    float mouseY,
+    int viewportWidth,
+    int viewportHeight,
+    const glm::mat4& view,
+    const glm::mat4& projection,
+    float handleRadiusPixels) {
+    if (viewportWidth <= 0 || viewportHeight <= 0) {
+        return std::nullopt;
+    }
+
+    const glm::vec2 mouse(mouseX, mouseY);
+    const float radiusSq = handleRadiusPixels * handleRadiusPixels;
+    const float w = static_cast<float>(viewportWidth);
+    const float h = static_cast<float>(viewportHeight);
+
+    std::optional<MeshVertexHit> best;
+    float bestDistSq = std::numeric_limits<float>::max();
+
+    for (const SceneObject& object : scene.GetObjects()) {
+        if (!object.IsMesh() || object.vertices.empty()) {
+            continue;
+        }
+        for (size_t i = 0; i < object.vertices.size(); ++i) {
+            const glm::vec3 world =
+                glm::vec3(object.transform * glm::vec4(object.vertices[i], 1.0f));
+            glm::vec2 screenNorm{};
+            if (!CurveVertexAttach::ProjectWorldToScreenNorm(world, view, projection, screenNorm)) {
+                continue;
+            }
+            const glm::vec2 pixel(screenNorm.x * w, screenNorm.y * h);
+            const glm::vec2 d = mouse - pixel;
+            const float distSq = glm::dot(d, d);
+            if (distSq <= radiusSq && distSq < bestDistSq) {
+                bestDistSq = distSq;
+                best = MeshVertexHit{object.id, static_cast<int>(i)};
+            }
         }
     }
 

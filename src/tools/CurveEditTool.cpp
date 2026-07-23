@@ -15,6 +15,7 @@ void CurveEditTool::Begin(int objectId, Scene& scene) {
 
     m_Active = true;
     m_Translating = false;
+    m_TaggingVertex = false;
     m_Axis = AxisConstraint::None;
     m_TargetId = objectId;
     m_SelectedPoint.reset();
@@ -29,6 +30,7 @@ void CurveEditTool::Begin(int objectId, Scene& scene) {
 void CurveEditTool::End() {
     m_Active = false;
     m_Translating = false;
+    m_TaggingVertex = false;
     m_Axis = AxisConstraint::None;
     m_TargetId.reset();
     m_SelectedPoint.reset();
@@ -93,6 +95,10 @@ bool CurveEditTool::BeginTranslatePoint(CurvePointKind kind, int pointIndex, Sce
         return false;
     }
 
+    if (m_TaggingVertex) {
+        CancelTagVertex();
+    }
+
     if (m_Translating) {
         CancelTranslate(scene);
     }
@@ -106,6 +112,14 @@ bool CurveEditTool::BeginTranslatePoint(CurvePointKind kind, int pointIndex, Sce
         m_OriginalPoint = object->controlPoints[static_cast<size_t>(pointIndex)];
         m_OriginalControls.clear();
         m_WorkingFitPoints.clear();
+
+        // Attached CPs follow a mesh vertex — select only (no free drag).
+        if (object->IsBSplineCurve() && object->IsControlPointAttached(pointIndex)) {
+            m_Translating = false;
+            m_Axis = AxisConstraint::None;
+            ClearNumericInput();
+            return true;
+        }
     } else {
         if (!object->IsBSplineCurve()) {
             return false;
@@ -119,6 +133,16 @@ bool CurveEditTool::BeginTranslatePoint(CurvePointKind kind, int pointIndex, Sce
         m_SelectedPoint = pointIndex;
         m_OriginalFitPoint = m_WorkingFitPoints[static_cast<size_t>(pointIndex)];
         m_OriginalControls = object->controlPoints;
+
+        // Attached fit points follow a mesh vertex — select only (no free drag).
+        if (object->IsFitPointAttached(pointIndex)) {
+            m_Translating = false;
+            m_Axis = AxisConstraint::None;
+            m_WorkingFitPoints.clear();
+            m_OriginalControls.clear();
+            ClearNumericInput();
+            return true;
+        }
     }
 
     m_Translating = true;
@@ -389,6 +413,7 @@ void CurveEditTool::SetHandleMode(CurvePointKind mode, Scene& scene) {
     if (m_Translating) {
         CancelTranslate(scene);
     }
+    CancelTagVertex();
 
     m_HandleMode = mode;
     ClearPointSelection();
@@ -441,8 +466,99 @@ bool CurveEditTool::RemoveSegment(Scene& scene) {
     if (!BSplineFit::RemoveSegment(object->controlPoints)) {
         return false;
     }
+    object->PruneAllPointAttachments();
     ClearPointSelection();
     ClearNumericInput();
+    return true;
+}
+
+bool CurveEditTool::BeginTagVertex(Scene& scene) {
+    if (!m_Active || !m_TargetId.has_value()) {
+        return false;
+    }
+    SceneObject* object = scene.FindById(*m_TargetId);
+    if (!object || !object->IsBSplineCurve()) {
+        return false;
+    }
+    if (!m_SelectedPoint.has_value() || m_SelectedKind != m_HandleMode) {
+        return false;
+    }
+    if (m_HandleMode == CurvePointKind::Control) {
+        if (*m_SelectedPoint < 0 ||
+            *m_SelectedPoint >= static_cast<int>(object->controlPoints.size())) {
+            return false;
+        }
+    } else {
+        if (*m_SelectedPoint < 0 || *m_SelectedPoint >= object->FitPointCount()) {
+            return false;
+        }
+    }
+    if (m_Translating) {
+        CancelTranslate(scene);
+    }
+    m_TaggingVertex = true;
+    ClearNumericInput();
+    return true;
+}
+
+void CurveEditTool::CancelTagVertex() {
+    m_TaggingVertex = false;
+}
+
+bool CurveEditTool::CompleteTagVertex(int meshObjectId, int vertexIndex, Scene& scene) {
+    if (!m_TaggingVertex || !m_TargetId.has_value() || !m_SelectedPoint.has_value()) {
+        return false;
+    }
+    SceneObject* curve = scene.FindById(*m_TargetId);
+    SceneObject* mesh = scene.FindById(meshObjectId);
+    if (!curve || !curve->IsBSplineCurve() || !mesh || !mesh->IsMesh()) {
+        return false;
+    }
+    if (vertexIndex < 0 || vertexIndex >= static_cast<int>(mesh->vertices.size())) {
+        return false;
+    }
+
+    if (m_SelectedKind == CurvePointKind::Control) {
+        if (*m_SelectedPoint < 0 ||
+            *m_SelectedPoint >= static_cast<int>(curve->controlPoints.size())) {
+            return false;
+        }
+        curve->SetControlPointAttachment(*m_SelectedPoint, meshObjectId, vertexIndex);
+    } else {
+        if (*m_SelectedPoint < 0 || *m_SelectedPoint >= curve->FitPointCount()) {
+            return false;
+        }
+        curve->SetFitPointAttachment(*m_SelectedPoint, meshObjectId, vertexIndex);
+    }
+    m_TaggingVertex = false;
+    return true;
+}
+
+bool CurveEditTool::UntagSelectedPoint(Scene& scene) {
+    if (!m_Active || !m_TargetId.has_value() || !m_SelectedPoint.has_value()) {
+        return false;
+    }
+    SceneObject* curve = scene.FindById(*m_TargetId);
+    if (!curve || !curve->IsBSplineCurve()) {
+        return false;
+    }
+
+    const bool attached =
+        (m_SelectedKind == CurvePointKind::Control)
+            ? curve->IsControlPointAttached(*m_SelectedPoint)
+            : curve->IsFitPointAttached(*m_SelectedPoint);
+    if (!attached) {
+        return false;
+    }
+    if (m_Translating) {
+        CancelTranslate(scene);
+    }
+    CancelTagVertex();
+    if (m_SelectedKind == CurvePointKind::Control) {
+        curve->ClearControlPointAttachment(*m_SelectedPoint);
+    } else {
+        curve->ClearFitPointAttachment(*m_SelectedPoint);
+    }
     return true;
 }
 
@@ -456,7 +572,8 @@ void CurveEditTool::DrawStatusUi(Scene& scene) {
     const int segments = isBSpline ? BSplineFit::SegmentCount(object->controlPoints) : 0;
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    const float statusHeight = m_Translating ? 110.0f : (isBSpline ? 140.0f : 88.0f);
+    const float statusHeight =
+        m_TaggingVertex ? 130.0f : (m_Translating ? 110.0f : (isBSpline ? 168.0f : 88.0f));
     ImGui::SetNextWindowPos(
         ImVec2(viewport->WorkPos.x + 12.0f, viewport->WorkPos.y + viewport->WorkSize.y - statusHeight),
         ImGuiCond_Always);
@@ -509,13 +626,42 @@ void CurveEditTool::DrawStatusUi(Scene& scene) {
             }
             ImGui::SameLine();
             ImGui::TextDisabled("Tab to toggle");
+
+            const bool hasSelection =
+                m_SelectedPoint.has_value() && m_SelectedKind == m_HandleMode;
+            const bool attached =
+                hasSelection &&
+                ((m_HandleMode == CurvePointKind::Control)
+                     ? object->IsControlPointAttached(*m_SelectedPoint)
+                     : object->IsFitPointAttached(*m_SelectedPoint));
+
+            ImGui::BeginDisabled(!hasSelection || m_Translating);
+            if (ImGui::SmallButton(m_TaggingVertex ? "Tagging...##TagVtx" : "Tag to Vertex##TagVtx")) {
+                BeginTagVertex(scene);
+            }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(!attached);
+            if (ImGui::SmallButton("Untag##UntagVtx")) {
+                UntagSelectedPoint(scene);
+            }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::TextDisabled("T / U");
         }
-        if (!m_Translating) {
+        if (m_TaggingVertex) {
+            const char* kindLabel =
+                m_SelectedKind == CurvePointKind::Fit ? "Fit" : "Control";
+            ImGui::Text("Tag %s %d: click a mesh vertex",
+                        kindLabel,
+                        m_SelectedPoint.has_value() ? *m_SelectedPoint : -1);
+            ImGui::TextUnformatted("Esc: cancel tagging");
+        } else if (!m_Translating) {
             if (isBSpline) {
                 if (m_HandleMode == CurvePointKind::Fit) {
-                    ImGui::TextUnformatted("Mode: fit points (on curve)");
+                    ImGui::TextUnformatted("Mode: fit points (magenta = tagged)");
                 } else {
-                    ImGui::TextUnformatted("Mode: control points");
+                    ImGui::TextUnformatted("Mode: control points (magenta = tagged)");
                 }
             } else {
                 ImGui::TextUnformatted("Click a control point to move it");

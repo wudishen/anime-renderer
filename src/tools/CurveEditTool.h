@@ -16,10 +16,12 @@ enum class CurvePointKind {
 // Edit-mode tool for screen-space curve points (normalized 0..1 viewport coords).
 // Control points: direct CV edit. Fit points (B-spline): on-curve handles; moving one
 // re-solves CVs so the curve still passes through every fit point.
+// Experimental: tag a control point to a mesh vertex so it follows that vertex on screen.
 class CurveEditTool {
 public:
     bool IsActive() const { return m_Active; }
     bool IsTranslating() const { return m_Translating; }
+    bool IsTaggingVertex() const { return m_TaggingVertex; }
     std::optional<int> GetTargetId() const { return m_TargetId; }
     std::optional<int> GetSelectedPoint() const { return m_SelectedPoint; }
     std::optional<CurvePointKind> GetSelectedPointKind() const {
@@ -49,6 +51,12 @@ public:
     bool AddSegment(Scene& scene);
     bool RemoveSegment(Scene& scene);
 
+    // Experimental mesh-vertex tagging (control-point mode only).
+    bool BeginTagVertex(Scene& scene);
+    void CancelTagVertex();
+    bool CompleteTagVertex(int meshObjectId, int vertexIndex, Scene& scene);
+    bool UntagSelectedPoint(Scene& scene);
+
     void DrawStatusUi(Scene& scene);
 
 private:
@@ -62,6 +70,7 @@ private:
 
     bool m_Active = false;
     bool m_Translating = false;
+    bool m_TaggingVertex = false;
     AxisConstraint m_Axis = AxisConstraint::None;
     std::optional<int> m_TargetId;
     std::optional<int> m_SelectedPoint;

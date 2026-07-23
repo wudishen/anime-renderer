@@ -21,6 +21,7 @@
 #include "scene/MeshFactory.h"
 #include "scene/CurveFactory.h"
 #include "scene/BSplineFit.h"
+#include "scene/CurveVertexAttach.h"
 #include "scene/Picking.h"
 #include "tools/TransformTool.h"
 #include "tools/CurveEditTool.h"
@@ -359,6 +360,8 @@ int main() {
     bool wasKeyMinus = false;
     bool wasKeyPeriod = false;
     bool wasKeyTab = false;
+    bool wasKeyT = false;
+    bool wasKeyU = false;
     bool wasDigitKey[10] = {};
     bool wasKpDigitKey[10] = {};
 
@@ -397,6 +400,8 @@ int main() {
             glfwGetKey(glfwWindow, GLFW_KEY_PERIOD) == GLFW_PRESS ||
             glfwGetKey(glfwWindow, GLFW_KEY_KP_DECIMAL) == GLFW_PRESS;
         const bool keyTab = glfwGetKey(glfwWindow, GLFW_KEY_TAB) == GLFW_PRESS;
+        const bool keyT = glfwGetKey(glfwWindow, GLFW_KEY_T) == GLFW_PRESS;
+        const bool keyU = glfwGetKey(glfwWindow, GLFW_KEY_U) == GLFW_PRESS;
         bool digitDown[10] = {};
         bool kpDigitDown[10] = {};
         for (int digit = 0; digit <= 9; ++digit) {
@@ -509,13 +514,21 @@ int main() {
                 if (keyTab && !wasKeyTab) {
                     curveEditTool.ToggleHandleMode(scene);
                 }
+                if (keyT && !wasKeyT) {
+                    curveEditTool.BeginTagVertex(scene);
+                }
+                if (keyU && !wasKeyU) {
+                    curveEditTool.UntagSelectedPoint(scene);
+                }
                 if (keyEnter && !wasKeyEnter) {
                     if (curveEditTool.IsTranslating()) {
                         curveEditTool.ConfirmTranslate();
                     }
                 }
                 if (keyEscape && !wasKeyEscape) {
-                    if (curveEditTool.IsTranslating()) {
+                    if (curveEditTool.IsTaggingVertex()) {
+                        curveEditTool.CancelTagVertex();
+                    } else if (curveEditTool.IsTranslating()) {
                         curveEditTool.CancelTranslate(scene);
                     } else {
                         curveEditTool.End();
@@ -537,7 +550,18 @@ int main() {
                 }
 
                 if (leftDown && !wasLeftDown) {
-                    if (curveEditTool.IsTranslating()) {
+                    if (curveEditTool.IsTaggingVertex()) {
+                        if (const auto hit = Picking::PickMeshVertex(
+                                scene,
+                                static_cast<float>(mouseX),
+                                static_cast<float>(mouseY),
+                                window.GetWidth(),
+                                window.GetHeight(),
+                                viewMatrix,
+                                projectionMatrix)) {
+                            curveEditTool.CompleteTagVertex(hit->objectId, hit->vertexIndex, scene);
+                        }
+                    } else if (curveEditTool.IsTranslating()) {
                         curveEditTool.ConfirmTranslate();
                     } else if (curveEditTool.GetTargetId().has_value()) {
                         if (const SceneObject* curve = scene.FindById(*curveEditTool.GetTargetId())) {
@@ -560,7 +584,9 @@ int main() {
                 }
 
                 if (rightDown && !wasRightDown) {
-                    if (curveEditTool.IsTranslating()) {
+                    if (curveEditTool.IsTaggingVertex()) {
+                        curveEditTool.CancelTagVertex();
+                    } else if (curveEditTool.IsTranslating()) {
                         curveEditTool.CancelTranslate(scene);
                     } else {
                         // Allow opening context menu on the curve while editing.
@@ -678,6 +704,8 @@ int main() {
         wasKeyMinus = keyMinus;
         wasKeyPeriod = keyPeriod;
         wasKeyTab = keyTab;
+        wasKeyT = keyT;
+        wasKeyU = keyU;
         for (int digit = 0; digit <= 9; ++digit) {
             wasDigitKey[digit] = digitDown[digit];
             wasKpDigitKey[digit] = kpDigitDown[digit];
@@ -716,6 +744,9 @@ int main() {
         }
 
         // Screen-space curve annotations (normalized CPs → pixels + ortho overlay).
+        // Keep tagged B-spline CPs glued to their mesh vertices in screen space.
+        CurveVertexAttach::SyncAttachedControlPoints(scene, viewMatrix, projectionMatrix);
+
         const int fbWidth = window.GetWidth();
         const int fbHeight = window.GetHeight();
         {
@@ -789,7 +820,35 @@ int main() {
                 const CurvePointKind handleMode = curveEditTool.GetHandleMode();
 
                 // Draw only the active handle kind (control vs fit).
+                auto drawMeshVertexMarkers = [&]() {
+                    if (!curveEditTool.IsTaggingVertex()) {
+                        return;
+                    }
+                    for (const SceneObject& object : scene.GetObjects()) {
+                        if (!object.IsMesh()) {
+                            continue;
+                        }
+                        for (size_t vi = 0; vi < object.vertices.size(); ++vi) {
+                            const glm::vec3 world =
+                                glm::vec3(object.transform * glm::vec4(object.vertices[vi], 1.0f));
+                            glm::vec2 screenNorm{};
+                            if (!CurveVertexAttach::ProjectWorldToScreenNorm(
+                                    world, viewMatrix, projectionMatrix, screenNorm)) {
+                                continue;
+                            }
+                            const glm::vec2 pixel = ScreenNormToPixel(screenNorm, w, h);
+                            const glm::mat4 handleModel =
+                                glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
+                                glm::scale(glm::mat4(1.0f), glm::vec3(0.55f, 0.55f, 1.0f));
+                            shader.SetMat4("uMVP", screenOrtho * handleModel);
+                            shader.SetVec3("uColor", glm::vec3(1.0f, 0.9f, 0.2f));
+                            controlPointHandle.Draw();
+                        }
+                    }
+                };
+
                 if (curve->IsBSplineCurve() && handleMode == CurvePointKind::Fit) {
+                    drawMeshVertexMarkers();
                     const std::vector<glm::vec2> fitPoints =
                         BSplineFit::FitPointsFromControls(curve->controlPoints);
                     for (size_t i = 0; i < fitPoints.size(); ++i) {
@@ -798,9 +857,13 @@ int main() {
                             *selectedKind == CurvePointKind::Fit &&
                             selectedIndex.has_value() &&
                             *selectedIndex == static_cast<int>(i);
-                        const glm::vec3 handleColor =
-                            selectedPoint ? glm::vec3(1.0f, 0.35f, 0.35f)
-                                          : glm::vec3(0.25f, 0.95f, 0.95f);
+                        const bool attached = curve->IsFitPointAttached(static_cast<int>(i));
+                        glm::vec3 handleColor = glm::vec3(0.25f, 0.95f, 0.95f);
+                        if (selectedPoint) {
+                            handleColor = glm::vec3(1.0f, 0.35f, 0.35f);
+                        } else if (attached) {
+                            handleColor = glm::vec3(0.95f, 0.35f, 0.95f);
+                        }
                         const glm::vec2 pixel = ScreenNormToPixel(fitPoints[i], w, h);
                         const glm::mat4 handleModel =
                             glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
@@ -811,14 +874,23 @@ int main() {
                         controlPointHandle.Draw();
                     }
                 } else {
+                    drawMeshVertexMarkers();
+
                     for (size_t i = 0; i < curve->controlPoints.size(); ++i) {
                         const bool selectedPoint =
                             selectedKind.has_value() &&
                             *selectedKind == CurvePointKind::Control &&
                             selectedIndex.has_value() &&
                             *selectedIndex == static_cast<int>(i);
-                        const glm::vec3 handleColor =
-                            selectedPoint ? glm::vec3(1.0f, 0.35f, 0.35f) : glm::vec3(1.0f, 1.0f, 1.0f);
+                        const bool attached =
+                            curve->IsBSplineCurve() &&
+                            curve->IsControlPointAttached(static_cast<int>(i));
+                        glm::vec3 handleColor = glm::vec3(1.0f, 1.0f, 1.0f);
+                        if (selectedPoint) {
+                            handleColor = glm::vec3(1.0f, 0.35f, 0.35f);
+                        } else if (attached) {
+                            handleColor = glm::vec3(0.95f, 0.35f, 0.95f);
+                        }
                         const glm::vec2 pixel = ScreenNormToPixel(
                             {curve->controlPoints[i].x, curve->controlPoints[i].y}, w, h);
                         const glm::mat4 handleModel =
