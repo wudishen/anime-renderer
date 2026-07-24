@@ -46,6 +46,23 @@ json Vec3ToJson(const glm::vec3& v) {
     return json::array({v.x, v.y, v.z});
 }
 
+const char* MeshAnchorKindToString(MeshAnchorKind kind) {
+    switch (kind) {
+    case MeshAnchorKind::Centroid:
+        return "centroid";
+    case MeshAnchorKind::Vertex:
+    default:
+        return "vertex";
+    }
+}
+
+MeshAnchorKind MeshAnchorKindFromString(const std::string& value) {
+    if (value == "centroid") {
+        return MeshAnchorKind::Centroid;
+    }
+    return MeshAnchorKind::Vertex;
+}
+
 bool Vec3FromJson(const json& arr, glm::vec3& out, std::string& error, const char* label) {
     if (!arr.is_array() || arr.size() != 3 || !arr[0].is_number() || !arr[1].is_number() || !arr[2].is_number()) {
         error = std::string(label) + " must be an array of 3 numbers.";
@@ -178,6 +195,7 @@ Result Save(const Scene& scene, const std::string& path) {
                     json item;
                     item["controlPointIndex"] = a.controlPointIndex;
                     item["meshObjectId"] = a.meshObjectId;
+                    item["anchorKind"] = MeshAnchorKindToString(a.anchorKind);
                     item["vertexIndex"] = a.vertexIndex;
                     attachments.push_back(std::move(item));
                 }
@@ -189,6 +207,7 @@ Result Save(const Scene& scene, const std::string& path) {
                     json item;
                     item["fitPointIndex"] = a.fitPointIndex;
                     item["meshObjectId"] = a.meshObjectId;
+                    item["anchorKind"] = MeshAnchorKindToString(a.anchorKind);
                     item["vertexIndex"] = a.vertexIndex;
                     attachments.push_back(std::move(item));
                 }
@@ -308,7 +327,11 @@ Result Load(Scene& scene, const std::string& path) {
                     ControlPointAttachment attach;
                     attach.controlPointIndex = item.value("controlPointIndex", -1);
                     attach.meshObjectId = item.value("meshObjectId", -1);
+                    attach.anchorKind = MeshAnchorKindFromString(item.value("anchorKind", "vertex"));
                     attach.vertexIndex = item.value("vertexIndex", -1);
+                    if (attach.anchorKind == MeshAnchorKind::Centroid) {
+                        attach.vertexIndex = -1;
+                    }
                     if (attach.controlPointIndex >= 0 &&
                         attach.controlPointIndex < static_cast<int>(object.controlPoints.size())) {
                         object.controlPointAttachments.push_back(attach);
@@ -325,7 +348,11 @@ Result Load(Scene& scene, const std::string& path) {
                     FitPointAttachment attach;
                     attach.fitPointIndex = item.value("fitPointIndex", -1);
                     attach.meshObjectId = item.value("meshObjectId", -1);
+                    attach.anchorKind = MeshAnchorKindFromString(item.value("anchorKind", "vertex"));
                     attach.vertexIndex = item.value("vertexIndex", -1);
+                    if (attach.anchorKind == MeshAnchorKind::Centroid) {
+                        attach.vertexIndex = -1;
+                    }
                     if (attach.fitPointIndex >= 0 &&
                         attach.fitPointIndex < object.FitPointCount()) {
                         object.fitPointAttachments.push_back(attach);

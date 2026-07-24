@@ -15,16 +15,24 @@ enum class SceneObjectType {
     BSplineCurve,
 };
 
-// Experimental: bind a B-spline control/fit point to a mesh vertex (screen follow).
+// Experimental: what a curve point can follow on a mesh.
+enum class MeshAnchorKind {
+    Vertex = 0,   // a single mesh vertex
+    Centroid = 1, // average of all local vertex positions (then transformed)
+};
+
+// Experimental: bind a B-spline control/fit point to a mesh anchor (screen follow).
 struct ControlPointAttachment {
     int controlPointIndex = -1;
     int meshObjectId = -1;
-    int vertexIndex = -1;
+    MeshAnchorKind anchorKind = MeshAnchorKind::Vertex;
+    int vertexIndex = -1; // used only when anchorKind == Vertex
 };
 
 struct FitPointAttachment {
     int fitPointIndex = -1;
     int meshObjectId = -1;
+    MeshAnchorKind anchorKind = MeshAnchorKind::Vertex;
     int vertexIndex = -1;
 };
 
@@ -87,20 +95,38 @@ struct SceneObject {
         return FindFitAttachmentIndex(fitPointIndex).has_value();
     }
 
-    void SetControlPointAttachment(int controlPointIndex, int meshObjectId, int vertexIndex) {
+    void SetControlPointAttachment(
+        int controlPointIndex,
+        int meshObjectId,
+        MeshAnchorKind anchorKind,
+        int vertexIndex) {
+        const ControlPointAttachment value{
+            controlPointIndex,
+            meshObjectId,
+            anchorKind,
+            anchorKind == MeshAnchorKind::Vertex ? vertexIndex : -1};
         if (const auto existing = FindAttachmentIndex(controlPointIndex)) {
-            controlPointAttachments[*existing] = {controlPointIndex, meshObjectId, vertexIndex};
+            controlPointAttachments[*existing] = value;
             return;
         }
-        controlPointAttachments.push_back({controlPointIndex, meshObjectId, vertexIndex});
+        controlPointAttachments.push_back(value);
     }
 
-    void SetFitPointAttachment(int fitPointIndex, int meshObjectId, int vertexIndex) {
+    void SetFitPointAttachment(
+        int fitPointIndex,
+        int meshObjectId,
+        MeshAnchorKind anchorKind,
+        int vertexIndex) {
+        const FitPointAttachment value{
+            fitPointIndex,
+            meshObjectId,
+            anchorKind,
+            anchorKind == MeshAnchorKind::Vertex ? vertexIndex : -1};
         if (const auto existing = FindFitAttachmentIndex(fitPointIndex)) {
-            fitPointAttachments[*existing] = {fitPointIndex, meshObjectId, vertexIndex};
+            fitPointAttachments[*existing] = value;
             return;
         }
-        fitPointAttachments.push_back({fitPointIndex, meshObjectId, vertexIndex});
+        fitPointAttachments.push_back(value);
     }
 
     void ClearControlPointAttachment(int controlPointIndex) {

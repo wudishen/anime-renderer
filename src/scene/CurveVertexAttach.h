@@ -2,6 +2,7 @@
 
 #include "scene/Scene.h"
 #include <glm/glm.hpp>
+#include <optional>
 
 namespace CurveVertexAttach {
 
@@ -13,7 +14,30 @@ bool ProjectWorldToScreenNorm(
     const glm::mat4& projection,
     glm::vec2& outNorm);
 
-// Update all B-spline control points that are tagged to mesh vertices.
+// Local-space average of mesh vertices, then transformed to world.
+bool ComputeMeshCentroidWorld(const SceneObject& mesh, glm::vec3& outWorld);
+
+// Resolve a mesh attachment target to world space.
+bool ComputeMeshAnchorWorld(
+    const SceneObject& mesh,
+    MeshAnchorKind kind,
+    int vertexIndex,
+    glm::vec3& outWorld);
+
+// Project an attachment target to normalized screen space.
+bool ProjectMeshAnchor(
+    const Scene& scene,
+    int meshObjectId,
+    MeshAnchorKind kind,
+    int vertexIndex,
+    const glm::mat4& view,
+    const glm::mat4& projection,
+    glm::vec2& outNorm);
+
+// True if the mesh object can still resolve this attachment.
+bool IsMeshAnchorValid(const Scene& scene, int meshObjectId, MeshAnchorKind kind, int vertexIndex);
+
+// Update all B-spline control/fit points tagged to mesh anchors.
 void SyncAttachedControlPoints(
     Scene& scene,
     const glm::mat4& view,

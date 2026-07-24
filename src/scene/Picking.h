@@ -13,9 +13,10 @@ struct CurveHandleHit {
     int index = -1;
 };
 
-struct MeshVertexHit {
+struct MeshAnchorHit {
     int objectId = -1;
-    int vertexIndex = -1;
+    MeshAnchorKind kind = MeshAnchorKind::Vertex;
+    int vertexIndex = -1; // used only for Vertex
 };
 
 // Returns the closest hit object id under the cursor, or nullopt if none.
@@ -50,8 +51,8 @@ std::optional<CurveHandleHit> PickCurveHandle(
     float handleRadiusPixels = 12.0f,
     std::optional<CurvePointKind> kindFilter = std::nullopt);
 
-// Pick the closest mesh vertex by screen proximity (for CP tagging).
-std::optional<MeshVertexHit> PickMeshVertex(
+// Pick the closest mesh anchor (vertex or derived centroid) by screen proximity.
+std::optional<MeshAnchorHit> PickMeshAnchor(
     const Scene& scene,
     float mouseX,
     float mouseY,

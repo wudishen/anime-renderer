@@ -1,6 +1,7 @@
 #include "CurveEditTool.h"
 
 #include "scene/BSplineFit.h"
+#include "scene/CurveVertexAttach.h"
 
 #include <imgui.h>
 #include <algorithm>
@@ -505,7 +506,11 @@ void CurveEditTool::CancelTagVertex() {
     m_TaggingVertex = false;
 }
 
-bool CurveEditTool::CompleteTagVertex(int meshObjectId, int vertexIndex, Scene& scene) {
+bool CurveEditTool::CompleteTagAnchor(
+    int meshObjectId,
+    MeshAnchorKind anchorKind,
+    int vertexIndex,
+    Scene& scene) {
     if (!m_TaggingVertex || !m_TargetId.has_value() || !m_SelectedPoint.has_value()) {
         return false;
     }
@@ -514,7 +519,7 @@ bool CurveEditTool::CompleteTagVertex(int meshObjectId, int vertexIndex, Scene& 
     if (!curve || !curve->IsBSplineCurve() || !mesh || !mesh->IsMesh()) {
         return false;
     }
-    if (vertexIndex < 0 || vertexIndex >= static_cast<int>(mesh->vertices.size())) {
+    if (!CurveVertexAttach::IsMeshAnchorValid(scene, meshObjectId, anchorKind, vertexIndex)) {
         return false;
     }
 
@@ -523,12 +528,12 @@ bool CurveEditTool::CompleteTagVertex(int meshObjectId, int vertexIndex, Scene& 
             *m_SelectedPoint >= static_cast<int>(curve->controlPoints.size())) {
             return false;
         }
-        curve->SetControlPointAttachment(*m_SelectedPoint, meshObjectId, vertexIndex);
+        curve->SetControlPointAttachment(*m_SelectedPoint, meshObjectId, anchorKind, vertexIndex);
     } else {
         if (*m_SelectedPoint < 0 || *m_SelectedPoint >= curve->FitPointCount()) {
             return false;
         }
-        curve->SetFitPointAttachment(*m_SelectedPoint, meshObjectId, vertexIndex);
+        curve->SetFitPointAttachment(*m_SelectedPoint, meshObjectId, anchorKind, vertexIndex);
     }
     m_TaggingVertex = false;
     return true;
@@ -573,7 +578,7 @@ void CurveEditTool::DrawStatusUi(Scene& scene) {
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     const float statusHeight =
-        m_TaggingVertex ? 130.0f : (m_Translating ? 110.0f : (isBSpline ? 168.0f : 88.0f));
+        m_TaggingVertex ? 148.0f : (m_Translating ? 110.0f : (isBSpline ? 168.0f : 88.0f));
     ImGui::SetNextWindowPos(
         ImVec2(viewport->WorkPos.x + 12.0f, viewport->WorkPos.y + viewport->WorkSize.y - statusHeight),
         ImGuiCond_Always);
@@ -652,9 +657,10 @@ void CurveEditTool::DrawStatusUi(Scene& scene) {
         if (m_TaggingVertex) {
             const char* kindLabel =
                 m_SelectedKind == CurvePointKind::Fit ? "Fit" : "Control";
-            ImGui::Text("Tag %s %d: click a mesh vertex",
+            ImGui::Text("Tag %s %d: click a mesh anchor",
                         kindLabel,
                         m_SelectedPoint.has_value() ? *m_SelectedPoint : -1);
+            ImGui::TextUnformatted("Yellow: vertex   Orange: centroid (avg)");
             ImGui::TextUnformatted("Esc: cancel tagging");
         } else if (!m_Translating) {
             if (isBSpline) {

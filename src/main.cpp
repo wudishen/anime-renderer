@@ -551,7 +551,7 @@ int main() {
 
                 if (leftDown && !wasLeftDown) {
                     if (curveEditTool.IsTaggingVertex()) {
-                        if (const auto hit = Picking::PickMeshVertex(
+                        if (const auto hit = Picking::PickMeshAnchor(
                                 scene,
                                 static_cast<float>(mouseX),
                                 static_cast<float>(mouseY),
@@ -559,7 +559,8 @@ int main() {
                                 window.GetHeight(),
                                 viewMatrix,
                                 projectionMatrix)) {
-                            curveEditTool.CompleteTagVertex(hit->objectId, hit->vertexIndex, scene);
+                            curveEditTool.CompleteTagAnchor(
+                                hit->objectId, hit->kind, hit->vertexIndex, scene);
                         }
                     } else if (curveEditTool.IsTranslating()) {
                         curveEditTool.ConfirmTranslate();
@@ -820,17 +821,20 @@ int main() {
                 const CurvePointKind handleMode = curveEditTool.GetHandleMode();
 
                 // Draw only the active handle kind (control vs fit).
-                auto drawMeshVertexMarkers = [&]() {
+                auto drawMeshAnchorMarkers = [&]() {
                     if (!curveEditTool.IsTaggingVertex()) {
                         return;
                     }
                     for (const SceneObject& object : scene.GetObjects()) {
-                        if (!object.IsMesh()) {
+                        if (!object.IsMesh() || object.vertices.empty()) {
                             continue;
                         }
                         for (size_t vi = 0; vi < object.vertices.size(); ++vi) {
-                            const glm::vec3 world =
-                                glm::vec3(object.transform * glm::vec4(object.vertices[vi], 1.0f));
+                            glm::vec3 world{};
+                            if (!CurveVertexAttach::ComputeMeshAnchorWorld(
+                                    object, MeshAnchorKind::Vertex, static_cast<int>(vi), world)) {
+                                continue;
+                            }
                             glm::vec2 screenNorm{};
                             if (!CurveVertexAttach::ProjectWorldToScreenNorm(
                                     world, viewMatrix, projectionMatrix, screenNorm)) {
@@ -844,11 +848,30 @@ int main() {
                             shader.SetVec3("uColor", glm::vec3(1.0f, 0.9f, 0.2f));
                             controlPointHandle.Draw();
                         }
+
+                        glm::vec3 centroidWorld{};
+                        if (CurveVertexAttach::ComputeMeshCentroidWorld(object, centroidWorld)) {
+                            glm::vec2 screenNorm{};
+                            if (CurveVertexAttach::ProjectWorldToScreenNorm(
+                                    centroidWorld, viewMatrix, projectionMatrix, screenNorm)) {
+                                const glm::vec2 pixel = ScreenNormToPixel(screenNorm, w, h);
+                                const glm::mat4 handleModel =
+                                    glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
+                                    glm::rotate(
+                                        glm::mat4(1.0f),
+                                        glm::radians(45.0f),
+                                        glm::vec3(0.0f, 0.0f, 1.0f)) *
+                                    glm::scale(glm::mat4(1.0f), glm::vec3(0.95f, 0.95f, 1.0f));
+                                shader.SetMat4("uMVP", screenOrtho * handleModel);
+                                shader.SetVec3("uColor", glm::vec3(1.0f, 0.55f, 0.15f));
+                                controlPointHandle.Draw();
+                            }
+                        }
                     }
                 };
 
                 if (curve->IsBSplineCurve() && handleMode == CurvePointKind::Fit) {
-                    drawMeshVertexMarkers();
+                    drawMeshAnchorMarkers();
                     const std::vector<glm::vec2> fitPoints =
                         BSplineFit::FitPointsFromControls(curve->controlPoints);
                     for (size_t i = 0; i < fitPoints.size(); ++i) {
@@ -874,7 +897,7 @@ int main() {
                         controlPointHandle.Draw();
                     }
                 } else {
-                    drawMeshVertexMarkers();
+                    drawMeshAnchorMarkers();
 
                     for (size_t i = 0; i < curve->controlPoints.size(); ++i) {
                         const bool selectedPoint =

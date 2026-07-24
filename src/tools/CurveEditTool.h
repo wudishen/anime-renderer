@@ -54,7 +54,11 @@ public:
     // Experimental mesh-vertex tagging (control-point mode only).
     bool BeginTagVertex(Scene& scene);
     void CancelTagVertex();
-    bool CompleteTagVertex(int meshObjectId, int vertexIndex, Scene& scene);
+    bool CompleteTagAnchor(
+        int meshObjectId,
+        MeshAnchorKind anchorKind,
+        int vertexIndex,
+        Scene& scene);
     bool UntagSelectedPoint(Scene& scene);
 
     void DrawStatusUi(Scene& scene);

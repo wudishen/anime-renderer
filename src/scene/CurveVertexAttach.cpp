@@ -21,28 +21,77 @@ bool ProjectWorldToScreenNorm(
     return true;
 }
 
-namespace {
+bool ComputeMeshCentroidWorld(const SceneObject& mesh, glm::vec3& outWorld) {
+    if (!mesh.IsMesh() || mesh.vertices.empty()) {
+        return false;
+    }
 
-bool ProjectAttachedVertex(
-    Scene& scene,
+    glm::vec3 sum(0.0f);
+    for (const glm::vec3& v : mesh.vertices) {
+        sum += v;
+    }
+    const glm::vec3 local = sum / static_cast<float>(mesh.vertices.size());
+    outWorld = glm::vec3(mesh.transform * glm::vec4(local, 1.0f));
+    return true;
+}
+
+bool ComputeMeshAnchorWorld(
+    const SceneObject& mesh,
+    MeshAnchorKind kind,
+    int vertexIndex,
+    glm::vec3& outWorld) {
+    if (!mesh.IsMesh()) {
+        return false;
+    }
+
+    switch (kind) {
+    case MeshAnchorKind::Centroid:
+        return ComputeMeshCentroidWorld(mesh, outWorld);
+    case MeshAnchorKind::Vertex:
+    default:
+        if (vertexIndex < 0 || vertexIndex >= static_cast<int>(mesh.vertices.size())) {
+            return false;
+        }
+        outWorld = glm::vec3(
+            mesh.transform * glm::vec4(mesh.vertices[static_cast<size_t>(vertexIndex)], 1.0f));
+        return true;
+    }
+}
+
+bool IsMeshAnchorValid(
+    const Scene& scene,
     int meshObjectId,
+    MeshAnchorKind kind,
+    int vertexIndex) {
+    const SceneObject* mesh = scene.FindById(meshObjectId);
+    if (!mesh || !mesh->IsMesh() || mesh->vertices.empty()) {
+        return false;
+    }
+    if (kind == MeshAnchorKind::Vertex) {
+        return vertexIndex >= 0 && vertexIndex < static_cast<int>(mesh->vertices.size());
+    }
+    return kind == MeshAnchorKind::Centroid;
+}
+
+bool ProjectMeshAnchor(
+    const Scene& scene,
+    int meshObjectId,
+    MeshAnchorKind kind,
     int vertexIndex,
     const glm::mat4& view,
     const glm::mat4& projection,
     glm::vec2& outNorm) {
-    SceneObject* mesh = scene.FindById(meshObjectId);
-    if (!mesh || !mesh->IsMesh() ||
-        vertexIndex < 0 ||
-        vertexIndex >= static_cast<int>(mesh->vertices.size())) {
+    const SceneObject* mesh = scene.FindById(meshObjectId);
+    if (!mesh) {
         return false;
     }
 
-    const glm::vec3 world =
-        glm::vec3(mesh->transform * glm::vec4(mesh->vertices[static_cast<size_t>(vertexIndex)], 1.0f));
+    glm::vec3 world{};
+    if (!ComputeMeshAnchorWorld(*mesh, kind, vertexIndex, world)) {
+        return false;
+    }
     return ProjectWorldToScreenNorm(world, view, projection, outNorm);
 }
-
-} // namespace
 
 void SyncAttachedControlPoints(
     Scene& scene,
@@ -58,7 +107,7 @@ void SyncAttachedControlPoints(
 
         curve.PruneAllPointAttachments();
 
-        // 1) Control-point tags: pin CPs directly to mesh vertices.
+        // 1) Control-point tags: pin CPs directly to mesh anchors.
         for (auto it = curve.controlPointAttachments.begin();
              it != curve.controlPointAttachments.end();) {
             const ControlPointAttachment& attach = *it;
@@ -69,13 +118,16 @@ void SyncAttachedControlPoints(
             }
 
             glm::vec2 screenNorm{};
-            if (!ProjectAttachedVertex(
-                    scene, attach.meshObjectId, attach.vertexIndex, view, projection, screenNorm)) {
-                // Drop invalid mesh/vertex refs; keep if only behind camera this frame.
-                SceneObject* mesh = scene.FindById(attach.meshObjectId);
-                if (!mesh || !mesh->IsMesh() ||
-                    attach.vertexIndex < 0 ||
-                    attach.vertexIndex >= static_cast<int>(mesh->vertices.size())) {
+            if (!ProjectMeshAnchor(
+                    scene,
+                    attach.meshObjectId,
+                    attach.anchorKind,
+                    attach.vertexIndex,
+                    view,
+                    projection,
+                    screenNorm)) {
+                if (!IsMeshAnchorValid(
+                        scene, attach.meshObjectId, attach.anchorKind, attach.vertexIndex)) {
                     it = curve.controlPointAttachments.erase(it);
                     continue;
                 }
@@ -108,12 +160,16 @@ void SyncAttachedControlPoints(
             }
 
             glm::vec2 screenNorm{};
-            if (!ProjectAttachedVertex(
-                    scene, attach.meshObjectId, attach.vertexIndex, view, projection, screenNorm)) {
-                SceneObject* mesh = scene.FindById(attach.meshObjectId);
-                if (!mesh || !mesh->IsMesh() ||
-                    attach.vertexIndex < 0 ||
-                    attach.vertexIndex >= static_cast<int>(mesh->vertices.size())) {
+            if (!ProjectMeshAnchor(
+                    scene,
+                    attach.meshObjectId,
+                    attach.anchorKind,
+                    attach.vertexIndex,
+                    view,
+                    projection,
+                    screenNorm)) {
+                if (!IsMeshAnchorValid(
+                        scene, attach.meshObjectId, attach.anchorKind, attach.vertexIndex)) {
                     it = curve.fitPointAttachments.erase(it);
                     continue;
                 }
