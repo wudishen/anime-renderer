@@ -5,6 +5,7 @@
 #include "scene/CameraFactory.h"
 #include "scene/CurveFactory.h"
 #include "scene/MeshFactory.h"
+#include "scene/DerivedPointFactory.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -211,6 +212,9 @@ void Draw(Scene& scene) {
                 }
                 if (ImGui::MenuItem("B-Spline Curve")) {
                     AddMesh(scene, CurveFactory::CreateBSpline());
+                }
+                if (ImGui::MenuItem("Derived Point")) {
+                    AddMesh(scene, DerivedPointFactory::Create());
                 }
                 ImGui::EndMenu();
             }

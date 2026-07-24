@@ -515,8 +515,7 @@ bool CurveEditTool::CompleteTagAnchor(
         return false;
     }
     SceneObject* curve = scene.FindById(*m_TargetId);
-    SceneObject* mesh = scene.FindById(meshObjectId);
-    if (!curve || !curve->IsBSplineCurve() || !mesh || !mesh->IsMesh()) {
+    if (!curve || !curve->IsBSplineCurve()) {
         return false;
     }
     if (!CurveVertexAttach::IsMeshAnchorValid(scene, meshObjectId, anchorKind, vertexIndex)) {
@@ -660,7 +659,7 @@ void CurveEditTool::DrawStatusUi(Scene& scene) {
             ImGui::Text("Tag %s %d: click a mesh anchor",
                         kindLabel,
                         m_SelectedPoint.has_value() ? *m_SelectedPoint : -1);
-            ImGui::TextUnformatted("Yellow: vertex   Orange: centroid (avg)");
+            ImGui::TextUnformatted("Yellow: vertex   Orange: centroid   Green: scripted");
             ImGui::TextUnformatted("Esc: cancel tagging");
         } else if (!m_Translating) {
             if (isBSpline) {

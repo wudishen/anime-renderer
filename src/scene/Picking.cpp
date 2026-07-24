@@ -311,42 +311,54 @@ std::optional<MeshAnchorHit> PickMeshAnchor(
     };
 
     for (const SceneObject& object : scene.GetObjects()) {
-        if (!object.IsMesh() || object.vertices.empty()) {
-            continue;
+        if (object.IsMesh() && !object.vertices.empty()) {
+            for (size_t i = 0; i < object.vertices.size(); ++i) {
+                glm::vec3 world{};
+                if (!CurveVertexAttach::ComputeMeshAnchorWorld(
+                        scene, object.id, MeshAnchorKind::Vertex, static_cast<int>(i), world)) {
+                    continue;
+                }
+                glm::vec2 screenNorm{};
+                if (!CurveVertexAttach::ProjectWorldToScreenNorm(world, view, projection, screenNorm)) {
+                    continue;
+                }
+                consider(
+                    object.id,
+                    MeshAnchorKind::Vertex,
+                    static_cast<int>(i),
+                    {screenNorm.x * w, screenNorm.y * h});
+            }
+
+            glm::vec3 centroidWorld{};
+            if (CurveVertexAttach::ComputeMeshCentroidWorld(object, centroidWorld)) {
+                glm::vec2 screenNorm{};
+                if (CurveVertexAttach::ProjectWorldToScreenNorm(
+                        centroidWorld, view, projection, screenNorm)) {
+                    const glm::vec2 pixel(screenNorm.x * w, screenNorm.y * h);
+                    const glm::vec2 d = mouse - pixel;
+                    const float distSq = glm::dot(d, d);
+                    const float centroidRadiusSq =
+                        (handleRadiusPixels * 1.35f) * (handleRadiusPixels * 1.35f);
+                    if (distSq <= centroidRadiusSq && distSq < bestDistSq) {
+                        bestDistSq = distSq;
+                        best = MeshAnchorHit{object.id, MeshAnchorKind::Centroid, -1};
+                    }
+                }
+            }
         }
 
-        for (size_t i = 0; i < object.vertices.size(); ++i) {
-            glm::vec3 world{};
-            if (!CurveVertexAttach::ComputeMeshAnchorWorld(
-                    object, MeshAnchorKind::Vertex, static_cast<int>(i), world)) {
-                continue;
-            }
-            glm::vec2 screenNorm{};
-            if (!CurveVertexAttach::ProjectWorldToScreenNorm(world, view, projection, screenNorm)) {
-                continue;
-            }
-            consider(
-                object.id,
-                MeshAnchorKind::Vertex,
-                static_cast<int>(i),
-                {screenNorm.x * w, screenNorm.y * h});
-        }
-
-        // Derived centroid (average of all vertex coords).
-        glm::vec3 centroidWorld{};
-        if (CurveVertexAttach::ComputeMeshCentroidWorld(object, centroidWorld)) {
+        if (object.IsDerivedPoint() && object.derivedEvalOk) {
             glm::vec2 screenNorm{};
             if (CurveVertexAttach::ProjectWorldToScreenNorm(
-                    centroidWorld, view, projection, screenNorm)) {
-                // Slightly larger pick radius for the derived point.
+                    object.derivedWorldPosition, view, projection, screenNorm)) {
                 const glm::vec2 pixel(screenNorm.x * w, screenNorm.y * h);
                 const glm::vec2 d = mouse - pixel;
                 const float distSq = glm::dot(d, d);
-                const float centroidRadiusSq =
-                    (handleRadiusPixels * 1.35f) * (handleRadiusPixels * 1.35f);
-                if (distSq <= centroidRadiusSq && distSq < bestDistSq) {
+                const float derivedRadiusSq =
+                    (handleRadiusPixels * 1.5f) * (handleRadiusPixels * 1.5f);
+                if (distSq <= derivedRadiusSq && distSq < bestDistSq) {
                     bestDistSq = distSq;
-                    best = MeshAnchorHit{object.id, MeshAnchorKind::Centroid, -1};
+                    best = MeshAnchorHit{object.id, MeshAnchorKind::DerivedPoint, -1};
                 }
             }
         }

@@ -68,6 +68,8 @@ add_executable(AnimeRenderer
     src/scene/CurveFactory.cpp
     src/scene/BSplineFit.cpp
     src/scene/CurveVertexAttach.cpp
+    src/scene/DerivedPointFactory.cpp
+    src/script/DpScript.cpp
     src/io/FileDialog.cpp
     src/io/ObjLoader.cpp
     src/io/SceneFile.cpp

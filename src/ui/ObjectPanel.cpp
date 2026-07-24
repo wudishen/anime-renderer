@@ -1,11 +1,13 @@
 #include "ObjectPanel.h"
 #include "io/FileDialog.h"
+#include "script/DpScript.h"
 
 #include <imgui.h>
 #include <algorithm>
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace ObjectPanel {
 namespace {
@@ -51,6 +53,58 @@ void DrawCameraBackgroundControls(SceneObject& camera) {
     }
 }
 
+void DrawDerivedPointControls(SceneObject& derived, Scene& scene) {
+    ImGui::Separator();
+    ImGui::TextUnformatted("Derived Point (DpScript)");
+    ImGui::Spacing();
+
+    // ImGui InputTextMultiline needs a writable buffer; resync when selection changes.
+    static int bufferObjectId = -1;
+    static std::vector<char> scriptBuffer;
+    if (bufferObjectId != derived.id) {
+        bufferObjectId = derived.id;
+        scriptBuffer.assign(derived.derivedScript.begin(), derived.derivedScript.end());
+        scriptBuffer.push_back('\0');
+        if (scriptBuffer.size() < 8192) {
+            scriptBuffer.resize(8192, '\0');
+        }
+    }
+
+    ImGui::TextUnformatted("Script");
+    ImGui::InputTextMultiline(
+        "##DpScript",
+        scriptBuffer.data(),
+        scriptBuffer.size(),
+        ImVec2(-1.0f, 220.0f),
+        ImGuiInputTextFlags_AllowTabInput);
+
+    if (ImGui::Button("Evaluate")) {
+        derived.derivedScript = scriptBuffer.data();
+        const DpScript::Result result = DpScript::Evaluate(derived.derivedScript, scene);
+        derived.derivedEvalOk = result.ok;
+        derived.derivedEvalError = result.error;
+        if (result.ok) {
+            derived.derivedWorldPosition = result.point;
+        }
+    }
+
+    ImGui::Spacing();
+    if (derived.derivedEvalOk) {
+        ImGui::TextColored(
+            ImVec4(0.4f, 1.0f, 0.5f, 1.0f),
+            "OK  (%.3f, %.3f, %.3f)",
+            derived.derivedWorldPosition.x,
+            derived.derivedWorldPosition.y,
+            derived.derivedWorldPosition.z);
+    } else {
+        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f), "Error");
+        ImGui::TextWrapped("%s", derived.derivedEvalError.c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("Tag curves to this point (green marker) in Edit mode.");
+}
+
 } // namespace
 
 ObjectContextMenu::ActionRequest Draw(Scene& scene, std::optional<int> curveEditObjectId) {
@@ -89,6 +143,8 @@ ObjectContextMenu::ActionRequest Draw(Scene& scene, std::optional<int> curveEdit
                     label = std::string(isActiveView ? "[View] " : "[Cam] ") + label;
                 } else if (object.IsCurve()) {
                     label = std::string("[Curve] ") + label;
+                } else if (object.IsDerivedPoint()) {
+                    label = std::string("[Derived] ") + label;
                 }
 
                 if (ImGui::Selectable(label.c_str(), selected)) {
@@ -110,9 +166,12 @@ ObjectContextMenu::ActionRequest Draw(Scene& scene, std::optional<int> curveEdit
         }
 
         if (scene.GetSelectedId().has_value()) {
-            if (SceneObject* selected = scene.FindById(*scene.GetSelectedId());
-                selected && selected->IsCamera()) {
-                DrawCameraBackgroundControls(*selected);
+            if (SceneObject* selected = scene.FindById(*scene.GetSelectedId())) {
+                if (selected->IsCamera()) {
+                    DrawCameraBackgroundControls(*selected);
+                } else if (selected->IsDerivedPoint()) {
+                    DrawDerivedPointControls(*selected, scene);
+                }
             }
         }
     }

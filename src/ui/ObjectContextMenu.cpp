@@ -51,6 +51,16 @@ ActionRequest DrawMenuItems(Scene& scene, int objectId, std::optional<int> curve
         return request;
     }
 
+    const bool isDerived = object && object->IsDerivedPoint();
+    if (isDerived) {
+        ImGui::TextDisabled("Edit script in Objects panel");
+        ImGui::Separator();
+        if (ImGui::MenuItem("Delete")) {
+            request.action = Action::Delete;
+        }
+        return request;
+    }
+
     if (isCamera) {
         if (ImGui::MenuItem("Go to View")) {
             request.action = Action::GoToView;

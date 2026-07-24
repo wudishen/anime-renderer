@@ -13,12 +13,14 @@ enum class SceneObjectType {
     Camera,
     BezierCurve,
     BSplineCurve,
+    DerivedPoint,
 };
 
-// Experimental: what a curve point can follow on a mesh.
+// Experimental: what a curve point can follow.
 enum class MeshAnchorKind {
-    Vertex = 0,   // a single mesh vertex
-    Centroid = 1, // average of all local vertex positions (then transformed)
+    Vertex = 0,        // a single mesh vertex
+    Centroid = 1,      // average of all local vertex positions (then transformed)
+    DerivedPoint = 2,  // scripted Derived Point object (meshObjectId = that object's id)
 };
 
 // Experimental: bind a B-spline control/fit point to a mesh anchor (screen follow).
@@ -44,6 +46,11 @@ struct SceneObject {
     std::vector<glm::vec3> controlPoints; // Curves: normalized screen (0,0)=top-left..(1,1); z unused
     std::vector<ControlPointAttachment> controlPointAttachments; // B-spline only
     std::vector<FitPointAttachment> fitPointAttachments; // B-spline only
+    // DerivedPoint: DpScript source + last evaluated world position.
+    std::string derivedScript;
+    glm::vec3 derivedWorldPosition{0.0f};
+    bool derivedEvalOk = false;
+    std::string derivedEvalError;
     Mesh mesh;
     glm::vec3 color{1.0f, 0.5f, 0.2f};
     glm::mat4 transform{1.0f};
@@ -61,6 +68,7 @@ struct SceneObject {
     bool IsBezierCurve() const { return type == SceneObjectType::BezierCurve; }
     bool IsBSplineCurve() const { return type == SceneObjectType::BSplineCurve; }
     bool IsMesh() const { return type == SceneObjectType::Mesh; }
+    bool IsDerivedPoint() const { return type == SceneObjectType::DerivedPoint; }
 
     int FitPointCount() const {
         if (controlPoints.size() < 4) {

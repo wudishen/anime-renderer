@@ -1,6 +1,7 @@
 #include "CurveVertexAttach.h"
 
 #include "BSplineFit.h"
+#include "script/DpScript.h"
 
 namespace CurveVertexAttach {
 
@@ -15,7 +16,6 @@ bool ProjectWorldToScreenNorm(
     }
 
     const glm::vec3 ndc = glm::vec3(clip) / clip.w;
-    // NDC y is up; screen-normalized y is down.
     outNorm.x = ndc.x * 0.5f + 0.5f;
     outNorm.y = 1.0f - (ndc.y * 0.5f + 0.5f);
     return true;
@@ -36,67 +36,95 @@ bool ComputeMeshCentroidWorld(const SceneObject& mesh, glm::vec3& outWorld) {
 }
 
 bool ComputeMeshAnchorWorld(
-    const SceneObject& mesh,
+    const Scene& scene,
+    int objectId,
     MeshAnchorKind kind,
     int vertexIndex,
     glm::vec3& outWorld) {
-    if (!mesh.IsMesh()) {
+    const SceneObject* object = scene.FindById(objectId);
+    if (!object) {
         return false;
     }
 
     switch (kind) {
+    case MeshAnchorKind::DerivedPoint:
+        if (!object->IsDerivedPoint() || !object->derivedEvalOk) {
+            return false;
+        }
+        outWorld = object->derivedWorldPosition;
+        return true;
     case MeshAnchorKind::Centroid:
-        return ComputeMeshCentroidWorld(mesh, outWorld);
+        return ComputeMeshCentroidWorld(*object, outWorld);
     case MeshAnchorKind::Vertex:
     default:
-        if (vertexIndex < 0 || vertexIndex >= static_cast<int>(mesh.vertices.size())) {
+        if (!object->IsMesh() ||
+            vertexIndex < 0 ||
+            vertexIndex >= static_cast<int>(object->vertices.size())) {
             return false;
         }
         outWorld = glm::vec3(
-            mesh.transform * glm::vec4(mesh.vertices[static_cast<size_t>(vertexIndex)], 1.0f));
+            object->transform * glm::vec4(object->vertices[static_cast<size_t>(vertexIndex)], 1.0f));
         return true;
     }
 }
 
 bool IsMeshAnchorValid(
     const Scene& scene,
-    int meshObjectId,
+    int objectId,
     MeshAnchorKind kind,
     int vertexIndex) {
-    const SceneObject* mesh = scene.FindById(meshObjectId);
-    if (!mesh || !mesh->IsMesh() || mesh->vertices.empty()) {
+    const SceneObject* object = scene.FindById(objectId);
+    if (!object) {
         return false;
     }
-    if (kind == MeshAnchorKind::Vertex) {
-        return vertexIndex >= 0 && vertexIndex < static_cast<int>(mesh->vertices.size());
+    switch (kind) {
+    case MeshAnchorKind::DerivedPoint:
+        return object->IsDerivedPoint();
+    case MeshAnchorKind::Centroid:
+        return object->IsMesh() && !object->vertices.empty();
+    case MeshAnchorKind::Vertex:
+    default:
+        return object->IsMesh() &&
+               vertexIndex >= 0 &&
+               vertexIndex < static_cast<int>(object->vertices.size());
     }
-    return kind == MeshAnchorKind::Centroid;
 }
 
 bool ProjectMeshAnchor(
     const Scene& scene,
-    int meshObjectId,
+    int objectId,
     MeshAnchorKind kind,
     int vertexIndex,
     const glm::mat4& view,
     const glm::mat4& projection,
     glm::vec2& outNorm) {
-    const SceneObject* mesh = scene.FindById(meshObjectId);
-    if (!mesh) {
-        return false;
-    }
-
     glm::vec3 world{};
-    if (!ComputeMeshAnchorWorld(*mesh, kind, vertexIndex, world)) {
+    if (!ComputeMeshAnchorWorld(scene, objectId, kind, vertexIndex, world)) {
         return false;
     }
     return ProjectWorldToScreenNorm(world, view, projection, outNorm);
+}
+
+void EvaluateDerivedPoints(Scene& scene) {
+    for (SceneObject& object : scene.GetObjects()) {
+        if (!object.IsDerivedPoint()) {
+            continue;
+        }
+        const DpScript::Result result = DpScript::Evaluate(object.derivedScript, scene);
+        object.derivedEvalOk = result.ok;
+        object.derivedEvalError = result.error;
+        if (result.ok) {
+            object.derivedWorldPosition = result.point;
+        }
+    }
 }
 
 void SyncAttachedControlPoints(
     Scene& scene,
     const glm::mat4& view,
     const glm::mat4& projection) {
+    EvaluateDerivedPoints(scene);
+
     for (SceneObject& curve : scene.GetObjects()) {
         if (!curve.IsBSplineCurve()) {
             continue;
@@ -107,7 +135,6 @@ void SyncAttachedControlPoints(
 
         curve.PruneAllPointAttachments();
 
-        // 1) Control-point tags: pin CPs directly to mesh anchors.
         for (auto it = curve.controlPointAttachments.begin();
              it != curve.controlPointAttachments.end();) {
             const ControlPointAttachment& attach = *it;
@@ -131,6 +158,7 @@ void SyncAttachedControlPoints(
                     it = curve.controlPointAttachments.erase(it);
                     continue;
                 }
+                // Derived point may fail eval this frame; keep attachment.
                 ++it;
                 continue;
             }
@@ -142,8 +170,6 @@ void SyncAttachedControlPoints(
             ++it;
         }
 
-        // 2) Fit-point tags: move on-curve points, then re-solve CPs so the curve
-        //    still interpolates every fit point.
         if (curve.fitPointAttachments.empty()) {
             continue;
         }

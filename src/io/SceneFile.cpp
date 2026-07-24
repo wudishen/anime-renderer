@@ -50,6 +50,8 @@ const char* MeshAnchorKindToString(MeshAnchorKind kind) {
     switch (kind) {
     case MeshAnchorKind::Centroid:
         return "centroid";
+    case MeshAnchorKind::DerivedPoint:
+        return "derived";
     case MeshAnchorKind::Vertex:
     default:
         return "vertex";
@@ -59,6 +61,9 @@ const char* MeshAnchorKindToString(MeshAnchorKind kind) {
 MeshAnchorKind MeshAnchorKindFromString(const std::string& value) {
     if (value == "centroid") {
         return MeshAnchorKind::Centroid;
+    }
+    if (value == "derived" || value == "derivedPoint") {
+        return MeshAnchorKind::DerivedPoint;
     }
     return MeshAnchorKind::Vertex;
 }
@@ -80,6 +85,8 @@ std::string TypeToString(SceneObjectType type) {
         return "bezier";
     case SceneObjectType::BSplineCurve:
         return "bspline";
+    case SceneObjectType::DerivedPoint:
+        return "derived";
     case SceneObjectType::Mesh:
     default:
         return "mesh";
@@ -183,6 +190,8 @@ Result Save(const Scene& scene, const std::string& path) {
                 bg["enabled"] = object.background.enabled;
                 entry["background"] = std::move(bg);
             }
+        } else if (object.IsDerivedPoint()) {
+            entry["derivedScript"] = object.derivedScript;
         } else if (object.IsCurve()) {
             json cps = json::array();
             for (const glm::vec3& cp : object.controlPoints) {
@@ -294,6 +303,12 @@ Result Load(Scene& scene, const std::string& path) {
                     object.vertices.push_back(vertex);
                 }
             }
+        } else if (type == "derived") {
+            object.type = SceneObjectType::DerivedPoint;
+            object.color = {0.45f, 1.0f, 0.55f};
+            object.derivedScript = entry.value("derivedScript", std::string("return vec(0,0,0)\n"));
+            object.derivedEvalOk = false;
+            object.derivedEvalError = "Not evaluated yet";
         } else if (type == "bezier" || type == "bspline") {
             object.type =
                 (type == "bezier") ? SceneObjectType::BezierCurve : SceneObjectType::BSplineCurve;
@@ -329,7 +344,8 @@ Result Load(Scene& scene, const std::string& path) {
                     attach.meshObjectId = item.value("meshObjectId", -1);
                     attach.anchorKind = MeshAnchorKindFromString(item.value("anchorKind", "vertex"));
                     attach.vertexIndex = item.value("vertexIndex", -1);
-                    if (attach.anchorKind == MeshAnchorKind::Centroid) {
+                    if (attach.anchorKind == MeshAnchorKind::Centroid ||
+                        attach.anchorKind == MeshAnchorKind::DerivedPoint) {
                         attach.vertexIndex = -1;
                     }
                     if (attach.controlPointIndex >= 0 &&
@@ -350,7 +366,8 @@ Result Load(Scene& scene, const std::string& path) {
                     attach.meshObjectId = item.value("meshObjectId", -1);
                     attach.anchorKind = MeshAnchorKindFromString(item.value("anchorKind", "vertex"));
                     attach.vertexIndex = item.value("vertexIndex", -1);
-                    if (attach.anchorKind == MeshAnchorKind::Centroid) {
+                    if (attach.anchorKind == MeshAnchorKind::Centroid ||
+                        attach.anchorKind == MeshAnchorKind::DerivedPoint) {
                         attach.vertexIndex = -1;
                     }
                     if (attach.fitPointIndex >= 0 &&

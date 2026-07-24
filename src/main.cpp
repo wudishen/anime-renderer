@@ -826,44 +826,64 @@ int main() {
                         return;
                     }
                     for (const SceneObject& object : scene.GetObjects()) {
-                        if (!object.IsMesh() || object.vertices.empty()) {
-                            continue;
-                        }
-                        for (size_t vi = 0; vi < object.vertices.size(); ++vi) {
-                            glm::vec3 world{};
-                            if (!CurveVertexAttach::ComputeMeshAnchorWorld(
-                                    object, MeshAnchorKind::Vertex, static_cast<int>(vi), world)) {
-                                continue;
-                            }
-                            glm::vec2 screenNorm{};
-                            if (!CurveVertexAttach::ProjectWorldToScreenNorm(
-                                    world, viewMatrix, projectionMatrix, screenNorm)) {
-                                continue;
-                            }
-                            const glm::vec2 pixel = ScreenNormToPixel(screenNorm, w, h);
-                            const glm::mat4 handleModel =
-                                glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
-                                glm::scale(glm::mat4(1.0f), glm::vec3(0.55f, 0.55f, 1.0f));
-                            shader.SetMat4("uMVP", screenOrtho * handleModel);
-                            shader.SetVec3("uColor", glm::vec3(1.0f, 0.9f, 0.2f));
-                            controlPointHandle.Draw();
-                        }
-
-                        glm::vec3 centroidWorld{};
-                        if (CurveVertexAttach::ComputeMeshCentroidWorld(object, centroidWorld)) {
-                            glm::vec2 screenNorm{};
-                            if (CurveVertexAttach::ProjectWorldToScreenNorm(
-                                    centroidWorld, viewMatrix, projectionMatrix, screenNorm)) {
+                        if (object.IsMesh() && !object.vertices.empty()) {
+                            for (size_t vi = 0; vi < object.vertices.size(); ++vi) {
+                                glm::vec3 world{};
+                                if (!CurveVertexAttach::ComputeMeshAnchorWorld(
+                                        scene,
+                                        object.id,
+                                        MeshAnchorKind::Vertex,
+                                        static_cast<int>(vi),
+                                        world)) {
+                                    continue;
+                                }
+                                glm::vec2 screenNorm{};
+                                if (!CurveVertexAttach::ProjectWorldToScreenNorm(
+                                        world, viewMatrix, projectionMatrix, screenNorm)) {
+                                    continue;
+                                }
                                 const glm::vec2 pixel = ScreenNormToPixel(screenNorm, w, h);
                                 const glm::mat4 handleModel =
                                     glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
-                                    glm::rotate(
-                                        glm::mat4(1.0f),
-                                        glm::radians(45.0f),
-                                        glm::vec3(0.0f, 0.0f, 1.0f)) *
-                                    glm::scale(glm::mat4(1.0f), glm::vec3(0.95f, 0.95f, 1.0f));
+                                    glm::scale(glm::mat4(1.0f), glm::vec3(0.55f, 0.55f, 1.0f));
                                 shader.SetMat4("uMVP", screenOrtho * handleModel);
-                                shader.SetVec3("uColor", glm::vec3(1.0f, 0.55f, 0.15f));
+                                shader.SetVec3("uColor", glm::vec3(1.0f, 0.9f, 0.2f));
+                                controlPointHandle.Draw();
+                            }
+
+                            glm::vec3 centroidWorld{};
+                            if (CurveVertexAttach::ComputeMeshCentroidWorld(object, centroidWorld)) {
+                                glm::vec2 screenNorm{};
+                                if (CurveVertexAttach::ProjectWorldToScreenNorm(
+                                        centroidWorld, viewMatrix, projectionMatrix, screenNorm)) {
+                                    const glm::vec2 pixel = ScreenNormToPixel(screenNorm, w, h);
+                                    const glm::mat4 handleModel =
+                                        glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
+                                        glm::rotate(
+                                            glm::mat4(1.0f),
+                                            glm::radians(45.0f),
+                                            glm::vec3(0.0f, 0.0f, 1.0f)) *
+                                        glm::scale(glm::mat4(1.0f), glm::vec3(0.95f, 0.95f, 1.0f));
+                                    shader.SetMat4("uMVP", screenOrtho * handleModel);
+                                    shader.SetVec3("uColor", glm::vec3(1.0f, 0.55f, 0.15f));
+                                    controlPointHandle.Draw();
+                                }
+                            }
+                        }
+
+                        if (object.IsDerivedPoint() && object.derivedEvalOk) {
+                            glm::vec2 screenNorm{};
+                            if (CurveVertexAttach::ProjectWorldToScreenNorm(
+                                    object.derivedWorldPosition,
+                                    viewMatrix,
+                                    projectionMatrix,
+                                    screenNorm)) {
+                                const glm::vec2 pixel = ScreenNormToPixel(screenNorm, w, h);
+                                const glm::mat4 handleModel =
+                                    glm::translate(glm::mat4(1.0f), glm::vec3(pixel.x, pixel.y, 0.0f)) *
+                                    glm::scale(glm::mat4(1.0f), glm::vec3(1.1f, 1.1f, 1.0f));
+                                shader.SetMat4("uMVP", screenOrtho * handleModel);
+                                shader.SetVec3("uColor", glm::vec3(0.35f, 1.0f, 0.45f));
                                 controlPointHandle.Draw();
                             }
                         }
