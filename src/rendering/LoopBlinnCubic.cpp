@@ -175,6 +175,120 @@ float Cross2(const glm::vec2& a, const glm::vec2& b) {
     return a.x * b.y - a.y * b.x;
 }
 
+// Barycentric (u,v,w) of p w.r.t. triangle a,b,c. Allows values outside [0,1].
+bool Barycentric2D(
+    const glm::vec2& p,
+    const glm::vec2& a,
+    const glm::vec2& b,
+    const glm::vec2& c,
+    float& u,
+    float& v,
+    float& w) {
+    const glm::vec2 v0 = b - a;
+    const glm::vec2 v1 = c - a;
+    const glm::vec2 v2 = p - a;
+    const float d00 = glm::dot(v0, v0);
+    const float d01 = glm::dot(v0, v1);
+    const float d11 = glm::dot(v1, v1);
+    const float d20 = glm::dot(v2, v0);
+    const float d21 = glm::dot(v2, v1);
+    const float denom = d00 * d11 - d01 * d01;
+    if (std::fabs(denom) < kEps) {
+        return false;
+    }
+    v = (d11 * d20 - d01 * d21) / denom;
+    w = (d00 * d21 - d01 * d20) / denom;
+    u = 1.0f - v - w;
+    return true;
+}
+
+bool FindKlmBasis(
+    const std::array<glm::vec2, 4>& cps,
+    int& i0,
+    int& i1,
+    int& i2) {
+    float bestArea = 0.0f;
+    bool found = false;
+    for (int a = 0; a < 4; ++a) {
+        for (int b = a + 1; b < 4; ++b) {
+            for (int c = b + 1; c < 4; ++c) {
+                const float area = std::fabs(Cross2(cps[b] - cps[a], cps[c] - cps[a]));
+                if (area > bestArea) {
+                    bestArea = area;
+                    i0 = a;
+                    i1 = b;
+                    i2 = c;
+                    found = true;
+                }
+            }
+        }
+    }
+    return found && bestArea > kEps;
+}
+
+// Push each CP away from the centroid and extrapolate KLM so f stays valid outside the hull.
+void PadHullWithExtrapolatedKlm(
+    const std::array<glm::vec2, 4>& cps,
+    const glm::vec3 klmIn[4],
+    float pad,
+    std::array<glm::vec2, 4>& cpsOut,
+    glm::vec3 klmOut[4]) {
+    cpsOut = cps;
+    for (int i = 0; i < 4; ++i) {
+        klmOut[i] = klmIn[i];
+    }
+    if (pad <= 0.0f) {
+        return;
+    }
+
+    int i0 = 0;
+    int i1 = 1;
+    int i2 = 2;
+    if (!FindKlmBasis(cps, i0, i1, i2)) {
+        return;
+    }
+
+    glm::vec2 centroid(0.0f);
+    for (int i = 0; i < 4; ++i) {
+        centroid += cps[static_cast<size_t>(i)];
+    }
+    centroid *= 0.25f;
+
+    for (int i = 0; i < 4; ++i) {
+        glm::vec2 dir = cps[static_cast<size_t>(i)] - centroid;
+        const float len = glm::length(dir);
+        if (len > kEps) {
+            dir /= len;
+        } else {
+            // Degenerate toward centroid: push along an edge of the KLM basis.
+            dir = cps[static_cast<size_t>(i1)] - cps[static_cast<size_t>(i0)];
+            const float edgeLen = glm::length(dir);
+            if (edgeLen > kEps) {
+                dir = glm::vec2(-dir.y, dir.x) / edgeLen;
+            } else {
+                dir = glm::vec2(1.0f, 0.0f);
+            }
+        }
+
+        const glm::vec2 padded = cps[static_cast<size_t>(i)] + dir * pad;
+        cpsOut[static_cast<size_t>(i)] = padded;
+
+        float u = 0.0f;
+        float v = 0.0f;
+        float w = 0.0f;
+        if (Barycentric2D(
+                padded,
+                cps[static_cast<size_t>(i0)],
+                cps[static_cast<size_t>(i1)],
+                cps[static_cast<size_t>(i2)],
+                u,
+                v,
+                w)) {
+            klmOut[i] = u * klmIn[i0] + v * klmIn[i1] + w * klmIn[i2];
+        }
+    }
+}
+
 // Triangulate the convex hull of up to 4 planar control points.
 void TriangulateHull(
     const glm::vec3 positions[4],
@@ -283,26 +397,29 @@ LoopBlinnCubicStroke& LoopBlinnCubicStroke::operator=(LoopBlinnCubicStroke&& oth
     return *this;
 }
 
-bool LoopBlinnCubicStroke::Build(const std::array<glm::vec2, 4>& controlPoints, float z) {
+bool LoopBlinnCubicStroke::Build(
+    const std::array<glm::vec2, 4>& controlPoints,
+    float z,
+    float hullPad) {
     return BuildOnPlane(
         controlPoints,
         glm::vec3(0.0f, 0.0f, z),
         glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::vec3(0.0f, 1.0f, 0.0f),
+        hullPad);
 }
 
 bool LoopBlinnCubicStroke::BuildOnPlane(
     const std::array<glm::vec2, 4>& controlPoints,
     const glm::vec3& origin,
     const glm::vec3& axisU,
-    const glm::vec3& axisV) {
+    const glm::vec3& axisV,
+    float hullPad) {
     Destroy();
 
     glm::vec3 b[4];
-    glm::vec3 positions[4];
     for (int i = 0; i < 4; ++i) {
         b[i] = glm::vec3(controlPoints[i].x, controlPoints[i].y, 1.0f);
-        positions[i] = origin + controlPoints[i].x * axisU + controlPoints[i].y * axisV;
     }
 
     glm::vec3 klm[4];
@@ -310,8 +427,19 @@ bool LoopBlinnCubicStroke::BuildOnPlane(
         return false;
     }
 
+    std::array<glm::vec2, 4> paddedCps{};
+    glm::vec3 paddedKlm[4];
+    PadHullWithExtrapolatedKlm(controlPoints, klm, hullPad, paddedCps, paddedKlm);
+
+    glm::vec3 positions[4];
+    for (int i = 0; i < 4; ++i) {
+        positions[i] =
+            origin + paddedCps[static_cast<size_t>(i)].x * axisU
+            + paddedCps[static_cast<size_t>(i)].y * axisV;
+    }
+
     std::vector<LoopBlinnVertex> vertices;
-    TriangulateHull(positions, klm, vertices);
+    TriangulateHull(positions, paddedKlm, vertices);
     if (vertices.size() < 3) {
         return false;
     }
