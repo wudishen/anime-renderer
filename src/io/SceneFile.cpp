@@ -198,6 +198,9 @@ Result Save(const Scene& scene, const std::string& path) {
                 cps.push_back(Vec3ToJson(cp));
             }
             entry["controlPoints"] = std::move(cps);
+            if ((object.IsBezierCurve() || object.IsBSplineCurve()) && object.closed) {
+                entry["closed"] = true;
+            }
             if (object.IsBSplineCurve() && !object.controlPointAttachments.empty()) {
                 json attachments = json::array();
                 for (const ControlPointAttachment& a : object.controlPointAttachments) {
@@ -314,6 +317,7 @@ Result Load(Scene& scene, const std::string& path) {
                 (type == "bezier") ? SceneObjectType::BezierCurve : SceneObjectType::BSplineCurve;
             object.color = (type == "bezier") ? glm::vec3{0.95f, 0.85f, 0.25f}
                                               : glm::vec3{0.35f, 0.85f, 0.95f};
+            object.closed = entry.value("closed", false);
             if (entry.contains("controlPoints") && entry["controlPoints"].is_array()) {
                 for (const json& cpJson : entry["controlPoints"]) {
                     glm::vec3 cp{};
@@ -323,8 +327,20 @@ Result Load(Scene& scene, const std::string& path) {
                     object.controlPoints.push_back(cp);
                 }
             }
-            const size_t minCps = object.IsBezierCurve() ? 4 : 4;
-            if (object.controlPoints.size() < minCps) {
+            size_t minCps = 4;
+            if (object.IsBezierCurve() && object.closed) {
+                minCps = 6;
+                if (object.controlPoints.size() < minCps ||
+                    (object.controlPoints.size() % 3) != 0) {
+                    if (!warning.empty()) {
+                        warning += "\n";
+                    }
+                    warning += "Skipped closed bezier '" + object.name +
+                               "' (need 3*n control points, n>=2).";
+                    ++skippedUnknown;
+                    continue;
+                }
+            } else if (object.controlPoints.size() < minCps) {
                 if (!warning.empty()) {
                     warning += "\n";
                 }

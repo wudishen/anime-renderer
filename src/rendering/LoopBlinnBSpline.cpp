@@ -21,9 +21,13 @@ std::array<glm::vec2, 4> BSplineSegmentToBezier(
 
 } // namespace
 
-bool LoopBlinnBSplineStroke::Build(const std::vector<glm::vec2>& controlPoints, float z) {
+bool LoopBlinnBSplineStroke::Build(
+    const std::vector<glm::vec2>& controlPoints,
+    bool closed,
+    float z) {
     return BuildOnPlane(
         controlPoints,
+        closed,
         glm::vec3(0.0f, 0.0f, z),
         glm::vec3(1.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f));
@@ -31,6 +35,7 @@ bool LoopBlinnBSplineStroke::Build(const std::vector<glm::vec2>& controlPoints, 
 
 bool LoopBlinnBSplineStroke::BuildOnPlane(
     const std::vector<glm::vec2>& controlPoints,
+    bool closed,
     const glm::vec3& origin,
     const glm::vec3& axisU,
     const glm::vec3& axisV) {
@@ -40,17 +45,34 @@ bool LoopBlinnBSplineStroke::BuildOnPlane(
         return false;
     }
 
-    m_Segments.reserve(controlPoints.size() - 3);
-    for (size_t i = 0; i + 3 < controlPoints.size(); ++i) {
-        const std::array<glm::vec2, 4> bezier = BSplineSegmentToBezier(
-            controlPoints[i],
-            controlPoints[i + 1],
-            controlPoints[i + 2],
-            controlPoints[i + 3]);
+    const size_t n = controlPoints.size();
+    if (closed) {
+        m_Segments.reserve(n);
+        for (size_t i = 0; i < n; ++i) {
+            const std::array<glm::vec2, 4> bezier = BSplineSegmentToBezier(
+                controlPoints[i],
+                controlPoints[(i + 1) % n],
+                controlPoints[(i + 2) % n],
+                controlPoints[(i + 3) % n]);
 
-        LoopBlinnCubicStroke segment;
-        if (segment.BuildOnPlane(bezier, origin, axisU, axisV)) {
-            m_Segments.push_back(std::move(segment));
+            LoopBlinnCubicStroke segment;
+            if (segment.BuildOnPlane(bezier, origin, axisU, axisV)) {
+                m_Segments.push_back(std::move(segment));
+            }
+        }
+    } else {
+        m_Segments.reserve(n - 3);
+        for (size_t i = 0; i + 3 < n; ++i) {
+            const std::array<glm::vec2, 4> bezier = BSplineSegmentToBezier(
+                controlPoints[i],
+                controlPoints[i + 1],
+                controlPoints[i + 2],
+                controlPoints[i + 3]);
+
+            LoopBlinnCubicStroke segment;
+            if (segment.BuildOnPlane(bezier, origin, axisU, axisV)) {
+                m_Segments.push_back(std::move(segment));
+            }
         }
     }
 

@@ -6,7 +6,8 @@
 #include <vector>
 
 // Experimental uniform cubic B-spline stroke: converted to joined Loop-Blinn cubics.
-// Not a scene object; each overlapping window of 4 B-spline CPs becomes one Bézier segment.
+// Open: each overlapping window of 4 CPs becomes one Bézier segment (C2 joins).
+// Closed: n CPs → n periodic segments with wrap-around indices (C2 all the way around).
 class LoopBlinnBSplineStroke {
 public:
     LoopBlinnBSplineStroke() = default;
@@ -18,10 +19,14 @@ public:
     LoopBlinnBSplineStroke& operator=(LoopBlinnBSplineStroke&&) noexcept = default;
 
     // Needs at least 4 control points. Returns false if no drawable segments remain.
-    bool Build(const std::vector<glm::vec2>& controlPoints, float z = 0.0f);
+    bool Build(
+        const std::vector<glm::vec2>& controlPoints,
+        bool closed = false,
+        float z = 0.0f);
 
     bool BuildOnPlane(
         const std::vector<glm::vec2>& controlPoints,
+        bool closed,
         const glm::vec3& origin,
         const glm::vec3& axisU,
         const glm::vec3& axisV);

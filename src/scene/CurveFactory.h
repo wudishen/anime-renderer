@@ -6,5 +6,6 @@ namespace CurveFactory {
 
 SceneObject CreateBezier();
 SceneObject CreateBSpline();
+SceneObject CreateClosedBSpline();
 
 } // namespace CurveFactory

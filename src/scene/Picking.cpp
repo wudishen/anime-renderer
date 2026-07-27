@@ -107,27 +107,62 @@ bool PickScreenCurve(
     };
 
     if (object.IsBezierCurve() && object.controlPoints.size() >= 4) {
-        const glm::vec2 p0 = pixelCp(0);
-        const glm::vec2 p1 = pixelCp(1);
-        const glm::vec2 p2 = pixelCp(2);
-        const glm::vec2 p3 = pixelCp(3);
         constexpr int kSteps = 32;
-        for (int i = 0; i <= kSteps; ++i) {
-            samples.push_back(EvalCubicBezier2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
+        if (object.closed && object.controlPoints.size() >= 6 &&
+            (object.controlPoints.size() % 3) == 0) {
+            const size_t segmentCount = object.controlPoints.size() / 3;
+            for (size_t seg = 0; seg < segmentCount; ++seg) {
+                const glm::vec2 p0 = pixelCp(3 * seg);
+                const glm::vec2 p1 = pixelCp(3 * seg + 1);
+                const glm::vec2 p2 = pixelCp(3 * seg + 2);
+                const glm::vec2 p3 = pixelCp(3 * ((seg + 1) % segmentCount));
+                for (int i = 0; i <= kSteps; ++i) {
+                    if (seg > 0 && i == 0) {
+                        continue;
+                    }
+                    samples.push_back(
+                        EvalCubicBezier2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
+                }
+            }
+        } else {
+            const glm::vec2 p0 = pixelCp(0);
+            const glm::vec2 p1 = pixelCp(1);
+            const glm::vec2 p2 = pixelCp(2);
+            const glm::vec2 p3 = pixelCp(3);
+            for (int i = 0; i <= kSteps; ++i) {
+                samples.push_back(EvalCubicBezier2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
+            }
         }
     } else if (object.IsBSplineCurve() && object.controlPoints.size() >= 4) {
         constexpr int kSteps = 12;
-        for (size_t seg = 0; seg + 3 < object.controlPoints.size(); ++seg) {
-            const glm::vec2 p0 = pixelCp(seg);
-            const glm::vec2 p1 = pixelCp(seg + 1);
-            const glm::vec2 p2 = pixelCp(seg + 2);
-            const glm::vec2 p3 = pixelCp(seg + 3);
-            for (int i = 0; i <= kSteps; ++i) {
-                if (seg > 0 && i == 0) {
-                    continue;
+        const size_t n = object.controlPoints.size();
+        if (object.closed) {
+            for (size_t seg = 0; seg < n; ++seg) {
+                const glm::vec2 p0 = pixelCp(seg);
+                const glm::vec2 p1 = pixelCp((seg + 1) % n);
+                const glm::vec2 p2 = pixelCp((seg + 2) % n);
+                const glm::vec2 p3 = pixelCp((seg + 3) % n);
+                for (int i = 0; i <= kSteps; ++i) {
+                    if (seg > 0 && i == 0) {
+                        continue;
+                    }
+                    samples.push_back(
+                        EvalBSplineSegment2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
                 }
-                samples.push_back(
-                    EvalBSplineSegment2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
+            }
+        } else {
+            for (size_t seg = 0; seg + 3 < n; ++seg) {
+                const glm::vec2 p0 = pixelCp(seg);
+                const glm::vec2 p1 = pixelCp(seg + 1);
+                const glm::vec2 p2 = pixelCp(seg + 2);
+                const glm::vec2 p3 = pixelCp(seg + 3);
+                for (int i = 0; i <= kSteps; ++i) {
+                    if (seg > 0 && i == 0) {
+                        continue;
+                    }
+                    samples.push_back(
+                        EvalBSplineSegment2(p0, p1, p2, p3, static_cast<float>(i) / kSteps));
+                }
             }
         }
     } else {
@@ -267,7 +302,8 @@ std::optional<CurveHandleHit> PickCurveHandle(
     }
 
     if (object.IsBSplineCurve()) {
-        const std::vector<glm::vec2> fitPoints = BSplineFit::FitPointsFromControls(object.controlPoints);
+        const std::vector<glm::vec2> fitPoints =
+            BSplineFit::FitPointsFromControls(object.controlPoints, object.closed);
         for (size_t i = 0; i < fitPoints.size(); ++i) {
             consider(
                 CurvePointKind::Fit,

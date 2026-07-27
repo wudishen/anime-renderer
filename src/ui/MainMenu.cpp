@@ -213,6 +213,9 @@ void Draw(Scene& scene) {
                 if (ImGui::MenuItem("B-Spline Curve")) {
                     AddMesh(scene, CurveFactory::CreateBSpline());
                 }
+                if (ImGui::MenuItem("Closed B-Spline Curve")) {
+                    AddMesh(scene, CurveFactory::CreateClosedBSpline());
+                }
                 if (ImGui::MenuItem("Derived Point")) {
                     AddMesh(scene, DerivedPointFactory::Create());
                 }

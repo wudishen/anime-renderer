@@ -16,6 +16,7 @@
 #include "rendering/CameraBackgroundRenderer.h"
 #include "rendering/LoopBlinnCubic.h"
 #include "rendering/LoopBlinnBSpline.h"
+#include "rendering/LoopBlinnCubicPath.h"
 #include "scene/Scene.h"
 #include "scene/CameraFactory.h"
 #include "scene/MeshFactory.h"
@@ -49,29 +50,23 @@ static glm::vec2 ScreenNormToPixel(const glm::vec2& n, int width, int height) {
 
 static bool BuildScreenCurveStroke(
     const SceneObject& object,
-    LoopBlinnCubicStroke& cubicOut,
+    LoopBlinnCubicPathStroke& bezierOut,
     LoopBlinnBSplineStroke& bsplineOut,
     int width,
     int height) {
-    cubicOut.Destroy();
+    bezierOut.Destroy();
     bsplineOut.Destroy();
     if (width <= 0 || height <= 0) {
         return false;
     }
 
     if (object.IsBezierCurve()) {
-        if (object.controlPoints.size() < 4) {
-            return false;
+        std::vector<glm::vec2> cps;
+        cps.reserve(object.controlPoints.size());
+        for (const glm::vec3& cp : object.controlPoints) {
+            cps.push_back(ScreenNormToPixel({cp.x, cp.y}, width, height));
         }
-        std::array<glm::vec2, 4> cps{};
-        for (int i = 0; i < 4; ++i) {
-            cps[i] = ScreenNormToPixel(
-                {object.controlPoints[static_cast<size_t>(i)].x,
-                 object.controlPoints[static_cast<size_t>(i)].y},
-                width,
-                height);
-        }
-        return cubicOut.Build(cps, 0.0f);
+        return bezierOut.Build(cps, object.closed, 0.0f);
     }
 
     if (object.IsBSplineCurve()) {
@@ -83,7 +78,7 @@ static bool BuildScreenCurveStroke(
         for (const glm::vec3& cp : object.controlPoints) {
             cps.push_back(ScreenNormToPixel({cp.x, cp.y}, width, height));
         }
-        return bsplineOut.Build(cps, 0.0f);
+        return bsplineOut.Build(cps, object.closed, 0.0f);
     }
 
     return false;
@@ -330,7 +325,7 @@ int main() {
     controlPointHandle.Upload(MakeHandleQuadVertices(7.0f)); // ~14px square in screen ortho
 
     // Scratch strokes for screen-space scene curve annotations.
-    LoopBlinnCubicStroke screenCubicStroke;
+    LoopBlinnCubicPathStroke screenBezierStroke;
     LoopBlinnBSplineStroke screenBSplineStroke;
 
     Scene scene;
@@ -770,7 +765,7 @@ int main() {
                 if (!object.IsCurve()) {
                     continue;
                 }
-                if (!BuildScreenCurveStroke(object, screenCubicStroke, screenBSplineStroke, fbWidth, fbHeight)) {
+                if (!BuildScreenCurveStroke(object, screenBezierStroke, screenBSplineStroke, fbWidth, fbHeight)) {
                     continue;
                 }
 
@@ -779,8 +774,8 @@ int main() {
                     drawColor = {1.0f, 0.85f, 0.2f};
                 }
                 cubicBezierShader.SetVec3("uColor", drawColor);
-                if (object.IsBezierCurve() && screenCubicStroke.IsValid()) {
-                    screenCubicStroke.Draw();
+                if (object.IsBezierCurve() && screenBezierStroke.IsValid()) {
+                    screenBezierStroke.Draw();
                 } else if (object.IsBSplineCurve() && screenBSplineStroke.IsValid()) {
                     screenBSplineStroke.Draw();
                 }
@@ -893,7 +888,7 @@ int main() {
                 if (curve->IsBSplineCurve() && handleMode == CurvePointKind::Fit) {
                     drawMeshAnchorMarkers();
                     const std::vector<glm::vec2> fitPoints =
-                        BSplineFit::FitPointsFromControls(curve->controlPoints);
+                        BSplineFit::FitPointsFromControls(curve->controlPoints, curve->closed);
                     for (size_t i = 0; i < fitPoints.size(); ++i) {
                         const bool selectedPoint =
                             selectedKind.has_value() &&

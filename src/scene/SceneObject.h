@@ -44,6 +44,7 @@ struct SceneObject {
     SceneObjectType type = SceneObjectType::Mesh;
     std::vector<glm::vec3> vertices; // CPU copy for mesh/camera gizmo picking
     std::vector<glm::vec3> controlPoints; // Curves: normalized screen (0,0)=top-left..(1,1); z unused
+    bool closed = false; // Bézier polycurve or periodic B-spline loop
     std::vector<ControlPointAttachment> controlPointAttachments; // B-spline only
     std::vector<FitPointAttachment> fitPointAttachments; // B-spline only
     // DerivedPoint: DpScript source + last evaluated world position.
@@ -71,8 +72,11 @@ struct SceneObject {
     bool IsDerivedPoint() const { return type == SceneObjectType::DerivedPoint; }
 
     int FitPointCount() const {
-        if (controlPoints.size() < 4) {
+        if (!IsBSplineCurve() || controlPoints.size() < 4) {
             return 0;
+        }
+        if (closed) {
+            return static_cast<int>(controlPoints.size());
         }
         return static_cast<int>(controlPoints.size()) - 2;
     }

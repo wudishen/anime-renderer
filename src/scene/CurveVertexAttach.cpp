@@ -174,7 +174,8 @@ void SyncAttachedControlPoints(
             continue;
         }
 
-        std::vector<glm::vec2> fitPoints = BSplineFit::FitPointsFromControls(curve.controlPoints);
+        std::vector<glm::vec2> fitPoints =
+            BSplineFit::FitPointsFromControls(curve.controlPoints, curve.closed);
         bool anyFitUpdated = false;
 
         for (auto it = curve.fitPointAttachments.begin(); it != curve.fitPointAttachments.end();) {
@@ -212,7 +213,8 @@ void SyncAttachedControlPoints(
             continue;
         }
 
-        std::vector<glm::vec3> solved = BSplineFit::SolveControlsFromFitPoints(fitPoints);
+        std::vector<glm::vec3> solved =
+            BSplineFit::SolveControlsFromFitPoints(fitPoints, curve.closed);
         if (!solved.empty()) {
             curve.controlPoints = std::move(solved);
         }

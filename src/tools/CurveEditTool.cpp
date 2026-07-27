@@ -60,7 +60,8 @@ bool CurveEditTool::ApplyWorkingFitPoints(Scene& scene) {
         return false;
     }
 
-    std::vector<glm::vec3> solved = BSplineFit::SolveControlsFromFitPoints(m_WorkingFitPoints);
+    std::vector<glm::vec3> solved =
+        BSplineFit::SolveControlsFromFitPoints(m_WorkingFitPoints, object->closed);
     if (solved.empty()) {
         return false;
     }
@@ -125,7 +126,7 @@ bool CurveEditTool::BeginTranslatePoint(CurvePointKind kind, int pointIndex, Sce
         if (!object->IsBSplineCurve()) {
             return false;
         }
-        m_WorkingFitPoints = BSplineFit::FitPointsFromControls(object->controlPoints);
+        m_WorkingFitPoints = BSplineFit::FitPointsFromControls(object->controlPoints, object->closed);
         if (pointIndex < 0 || pointIndex >= static_cast<int>(m_WorkingFitPoints.size())) {
             m_WorkingFitPoints.clear();
             return false;
@@ -264,7 +265,9 @@ void CurveEditTool::ToggleAxisConstraint(AxisConstraint axis, Scene& scene) {
             if (m_SelectedPoint.has_value() &&
                 *m_SelectedPoint >= 0 &&
                 *m_SelectedPoint < static_cast<int>(m_WorkingFitPoints.size())) {
-                m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls);
+                const SceneObject* curve = scene.FindById(*m_TargetId);
+                const bool closed = curve && curve->closed;
+                m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls, closed);
             }
         } else if (glm::vec3* point = GetSelectedControlPoint(scene)) {
             *point = m_OriginalPoint;
@@ -318,7 +321,9 @@ void CurveEditTool::ApplyNumericOffset(Scene& scene, int viewportWidth, int view
             if (m_SelectedPoint.has_value() &&
                 *m_SelectedPoint >= 0 &&
                 *m_SelectedPoint < static_cast<int>(m_WorkingFitPoints.size())) {
-                m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls);
+                const SceneObject* curve = scene.FindById(*m_TargetId);
+                const bool closed = curve && curve->closed;
+                m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls, closed);
                 ApplyWorkingFitPoints(scene);
             }
         } else if (glm::vec3* point = GetSelectedControlPoint(scene)) {
@@ -343,7 +348,9 @@ void CurveEditTool::ApplyNumericOffset(Scene& scene, int viewportWidth, int view
         if (!m_SelectedPoint.has_value() || m_OriginalControls.empty()) {
             return;
         }
-        m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls);
+        const SceneObject* curve = scene.FindById(*m_TargetId);
+        const bool closed = curve && curve->closed;
+        m_WorkingFitPoints = BSplineFit::FitPointsFromControls(m_OriginalControls, closed);
         if (*m_SelectedPoint >= static_cast<int>(m_WorkingFitPoints.size())) {
             return;
         }
@@ -445,7 +452,7 @@ bool CurveEditTool::AddSegment(Scene& scene) {
     if (m_Translating) {
         CancelTranslate(scene);
     }
-    if (!BSplineFit::AddSegment(object->controlPoints)) {
+    if (!BSplineFit::AddSegment(object->controlPoints, object->closed)) {
         return false;
     }
     ClearPointSelection();
@@ -464,7 +471,7 @@ bool CurveEditTool::RemoveSegment(Scene& scene) {
     if (m_Translating) {
         CancelTranslate(scene);
     }
-    if (!BSplineFit::RemoveSegment(object->controlPoints)) {
+    if (!BSplineFit::RemoveSegment(object->controlPoints, object->closed)) {
         return false;
     }
     object->PruneAllPointAttachments();
@@ -573,7 +580,8 @@ void CurveEditTool::DrawStatusUi(Scene& scene) {
 
     SceneObject* object = m_TargetId.has_value() ? scene.FindById(*m_TargetId) : nullptr;
     const bool isBSpline = object && object->IsBSplineCurve();
-    const int segments = isBSpline ? BSplineFit::SegmentCount(object->controlPoints) : 0;
+    const int segments =
+        isBSpline ? BSplineFit::SegmentCount(object->controlPoints, object->closed) : 0;
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     const float statusHeight =
