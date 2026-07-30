@@ -8,6 +8,7 @@
 struct LoopBlinnVertex {
     glm::vec3 position;
     glm::vec3 klm;
+    float fScale = 1.0f; // |df/dn| near curve; constant per leaf
 };
 
 // Experimental Loop-Blinn cubic Bézier stroke mesh (planar XY, integral cubics).

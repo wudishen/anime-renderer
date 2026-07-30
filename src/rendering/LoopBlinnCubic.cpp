@@ -80,6 +80,60 @@ void ComputeDCoefficients(const glm::vec3 b[4], float& d1, float& d2, float& d3)
     d3 = -Det3(c[0], c[1], c[2]);
 }
 
+CubicType ClassifyCubic2D(const std::array<glm::vec2, 4>& cps) {
+    glm::vec3 b[4];
+    for (int i = 0; i < 4; ++i) {
+        b[i] = glm::vec3(cps[static_cast<size_t>(i)].x, cps[static_cast<size_t>(i)].y, 1.0f);
+    }
+    float d1 = 0.0f;
+    float d2 = 0.0f;
+    float d3 = 0.0f;
+    ComputeDCoefficients(b, d1, d2, d3);
+    float discr = 0.0f;
+    return Classify(d1, d2, d3, discr);
+}
+
+// de Casteljau split of a cubic at parameter t into left [0,t] and right [t,1].
+void SplitCubic(
+    const std::array<glm::vec2, 4>& cps,
+    float t,
+    std::array<glm::vec2, 4>& leftOut,
+    std::array<glm::vec2, 4>& rightOut) {
+    const glm::vec2& p0 = cps[0];
+    const glm::vec2& p1 = cps[1];
+    const glm::vec2& p2 = cps[2];
+    const glm::vec2& p3 = cps[3];
+
+    const glm::vec2 p01 = glm::mix(p0, p1, t);
+    const glm::vec2 p12 = glm::mix(p1, p2, t);
+    const glm::vec2 p23 = glm::mix(p2, p3, t);
+    const glm::vec2 p012 = glm::mix(p01, p12, t);
+    const glm::vec2 p123 = glm::mix(p12, p23, t);
+    const glm::vec2 p0123 = glm::mix(p012, p123, t);
+
+    leftOut = {p0, p01, p012, p0123};
+    rightOut = {p0123, p123, p23, p3};
+}
+
+constexpr int kMaxSubdivideDepth = 5;
+
+// Recursively split loop-type cubics so each leaf is safe for a single Loop-Blinn stroke.
+void CollectDrawableCubics(
+    const std::array<glm::vec2, 4>& cps,
+    int depth,
+    std::vector<std::array<glm::vec2, 4>>& out) {
+    const CubicType type = ClassifyCubic2D(cps);
+    if (type == CubicType::Loop && depth < kMaxSubdivideDepth) {
+        std::array<glm::vec2, 4> left{};
+        std::array<glm::vec2, 4> right{};
+        SplitCubic(cps, 0.5f, left, right);
+        CollectDrawableCubics(left, depth + 1, out);
+        CollectDrawableCubics(right, depth + 1, out);
+        return;
+    }
+    out.push_back(cps);
+}
+
 bool ComputeKlm(const glm::vec3 b[4], glm::vec3 klm[4]) {
     float d1 = 0.0f;
     float d2 = 0.0f;
@@ -226,6 +280,66 @@ bool FindKlmBasis(
     return found && bestArea > kEps;
 }
 
+glm::vec2 EvalCubic(const std::array<glm::vec2, 4>& cps, float t) {
+    const float u = 1.0f - t;
+    const float uu = u * u;
+    const float tt = t * t;
+    return uu * u * cps[0] + 3.0f * uu * t * cps[1] + 3.0f * u * tt * cps[2] + tt * t * cps[3];
+}
+
+glm::vec2 EvalCubicDeriv(const std::array<glm::vec2, 4>& cps, float t) {
+    const float u = 1.0f - t;
+    return 3.0f * u * u * (cps[1] - cps[0])
+         + 6.0f * u * t * (cps[2] - cps[1])
+         + 3.0f * t * t * (cps[3] - cps[2]);
+}
+
+float EvalF(const glm::vec3& klm) {
+    return klm.x * klm.x * klm.x - klm.y * klm.z;
+}
+
+// Approximate |df/dn| near the curve (1 plane unit along the normal) for stable stroke width.
+float EstimateLeafFScale(const std::array<glm::vec2, 4>& cps, const glm::vec3 klm[4]) {
+    int i0 = 0;
+    int i1 = 1;
+    int i2 = 2;
+    if (!FindKlmBasis(cps, i0, i1, i2)) {
+        return 1e-4f;
+    }
+
+    const glm::vec2 p = EvalCubic(cps, 0.5f);
+    glm::vec2 tangent = EvalCubicDeriv(cps, 0.5f);
+    const float tLen = glm::length(tangent);
+    if (tLen < kEps) {
+        tangent = cps[3] - cps[0];
+    }
+    const float tLen2 = glm::length(tangent);
+    if (tLen2 < kEps) {
+        return 1e-4f;
+    }
+    const glm::vec2 normal = glm::vec2(-tangent.y, tangent.x) / tLen2;
+    const glm::vec2 sample = p + normal; // 1 plane unit (pixels for screen curves)
+
+    float u = 0.0f;
+    float v = 0.0f;
+    float w = 0.0f;
+    if (!Barycentric2D(
+            sample,
+            cps[static_cast<size_t>(i0)],
+            cps[static_cast<size_t>(i1)],
+            cps[static_cast<size_t>(i2)],
+            u,
+            v,
+            w)) {
+        return 1e-4f;
+    }
+
+    const glm::vec3 klmSample =
+        u * klm[i0] + v * klm[i1] + w * klm[i2];
+    const float scale = std::fabs(EvalF(klmSample));
+    return (scale > 1e-4f) ? scale : 1e-4f;
+}
+
 // Push each CP away from the centroid and extrapolate KLM so f stays valid outside the hull.
 void PadHullWithExtrapolatedKlm(
     const std::array<glm::vec2, 4>& cps,
@@ -360,9 +474,9 @@ void TriangulateHull(
         if (std::fabs(area) < kEps) {
             return;
         }
-        out.push_back({positions[i0], klm[i0]});
-        out.push_back({positions[i1], klm[i1]});
-        out.push_back({positions[i2], klm[i2]});
+        out.push_back({positions[i0], klm[i0], 1.0f});
+        out.push_back({positions[i1], klm[i1], 1.0f});
+        out.push_back({positions[i2], klm[i2], 1.0f});
     };
 
     // Fan from first hull vertex.
@@ -417,29 +531,47 @@ bool LoopBlinnCubicStroke::BuildOnPlane(
     float hullPad) {
     Destroy();
 
-    glm::vec3 b[4];
-    for (int i = 0; i < 4; ++i) {
-        b[i] = glm::vec3(controlPoints[i].x, controlPoints[i].y, 1.0f);
-    }
-
-    glm::vec3 klm[4];
-    if (!ComputeKlm(b, klm)) {
+    std::vector<std::array<glm::vec2, 4>> leaves;
+    CollectDrawableCubics(controlPoints, 0, leaves);
+    if (leaves.empty()) {
         return false;
     }
 
-    std::array<glm::vec2, 4> paddedCps{};
-    glm::vec3 paddedKlm[4];
-    PadHullWithExtrapolatedKlm(controlPoints, klm, hullPad, paddedCps, paddedKlm);
+    std::vector<LoopBlinnVertex> vertices;
+    vertices.reserve(leaves.size() * 6);
 
-    glm::vec3 positions[4];
-    for (int i = 0; i < 4; ++i) {
-        positions[i] =
-            origin + paddedCps[static_cast<size_t>(i)].x * axisU
-            + paddedCps[static_cast<size_t>(i)].y * axisV;
+    for (const std::array<glm::vec2, 4>& leaf : leaves) {
+        glm::vec3 b[4];
+        for (int i = 0; i < 4; ++i) {
+            b[i] = glm::vec3(leaf[static_cast<size_t>(i)].x, leaf[static_cast<size_t>(i)].y, 1.0f);
+        }
+
+        glm::vec3 klm[4];
+        if (!ComputeKlm(b, klm)) {
+            continue;
+        }
+
+        std::array<glm::vec2, 4> paddedCps{};
+        glm::vec3 paddedKlm[4];
+        PadHullWithExtrapolatedKlm(leaf, klm, hullPad, paddedCps, paddedKlm);
+
+        const float fScale = EstimateLeafFScale(leaf, klm);
+
+        glm::vec3 positions[4];
+        for (int i = 0; i < 4; ++i) {
+            positions[i] =
+                origin + paddedCps[static_cast<size_t>(i)].x * axisU
+                + paddedCps[static_cast<size_t>(i)].y * axisV;
+        }
+
+        std::vector<LoopBlinnVertex> leafVerts;
+        TriangulateHull(positions, paddedKlm, leafVerts);
+        for (LoopBlinnVertex& vert : leafVerts) {
+            vert.fScale = fScale;
+        }
+        vertices.insert(vertices.end(), leafVerts.begin(), leafVerts.end());
     }
 
-    std::vector<LoopBlinnVertex> vertices;
-    TriangulateHull(positions, paddedKlm, vertices);
     if (vertices.size() < 3) {
         return false;
     }
@@ -474,6 +606,15 @@ bool LoopBlinnCubicStroke::BuildOnPlane(
         sizeof(LoopBlinnVertex),
         reinterpret_cast<void*>(offsetof(LoopBlinnVertex, klm)));
     glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(
+        2,
+        1,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(LoopBlinnVertex),
+        reinterpret_cast<void*>(offsetof(LoopBlinnVertex, fScale)));
+    glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
     return true;
