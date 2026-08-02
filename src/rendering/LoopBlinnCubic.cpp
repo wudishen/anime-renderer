@@ -115,7 +115,7 @@ void SplitCubic(
     rightOut = {p0123, p123, p23, p3};
 }
 
-constexpr int kMaxSubdivideDepth = 5;
+constexpr int kMaxSubdivideDepth = 2; // was 5 → 32 tiny leaves; 2 → at most 4 leaves
 
 // Recursively split loop-type cubics so each leaf is safe for a single Loop-Blinn stroke.
 void CollectDrawableCubics(
@@ -298,7 +298,9 @@ float EvalF(const glm::vec3& klm) {
     return klm.x * klm.x * klm.x - klm.y * klm.z;
 }
 
-// Approximate |df/dn| near the curve (1 plane unit along the normal) for stable stroke width.
+// Approximate |df/dn| near the curve for stable stroke width.
+// Use |f(P+eps*N) - f(P)| / eps (not |f(P+N)| alone): f(P) is often nonzero, and on
+// tiny subdivided leaves a fixed 1px probe can underflow both samples to 0.
 float EstimateLeafFScale(const std::array<glm::vec2, 4>& cps, const glm::vec3 klm[4]) {
     int i0 = 0;
     int i1 = 1;
@@ -306,6 +308,14 @@ float EstimateLeafFScale(const std::array<glm::vec2, 4>& cps, const glm::vec3 kl
     if (!FindKlmBasis(cps, i0, i1, i2)) {
         return 1e-4f;
     }
+
+    glm::vec2 mn = cps[0];
+    glm::vec2 mx = cps[0];
+    for (int i = 1; i < 4; ++i) {
+        mn = glm::min(mn, cps[static_cast<size_t>(i)]);
+        mx = glm::max(mx, cps[static_cast<size_t>(i)]);
+    }
+    const float bboxDiag = glm::length(mx - mn);
 
     const glm::vec2 p = EvalCubic(cps, 0.5f);
     glm::vec2 tangent = EvalCubicDeriv(cps, 0.5f);
@@ -318,25 +328,39 @@ float EstimateLeafFScale(const std::array<glm::vec2, 4>& cps, const glm::vec3 kl
         return 1e-4f;
     }
     const glm::vec2 normal = glm::vec2(-tangent.y, tangent.x) / tLen2;
-    const glm::vec2 sample = p + normal; // 1 plane unit (pixels for screen curves)
 
-    float u = 0.0f;
-    float v = 0.0f;
-    float w = 0.0f;
-    if (!Barycentric2D(
-            sample,
-            cps[static_cast<size_t>(i0)],
-            cps[static_cast<size_t>(i1)],
-            cps[static_cast<size_t>(i2)],
-            u,
-            v,
-            w)) {
+    // Keep the probe a small fraction of the leaf so f stays in a locally linear regime.
+    float eps = 1.0f;
+    if (bboxDiag > kEps) {
+        eps = std::clamp(0.05f * bboxDiag, 0.25f, 1.0f);
+    }
+
+    auto sampleF = [&](const glm::vec2& q, float& fOut) -> bool {
+        float u = 0.0f;
+        float v = 0.0f;
+        float w = 0.0f;
+        if (!Barycentric2D(
+                q,
+                cps[static_cast<size_t>(i0)],
+                cps[static_cast<size_t>(i1)],
+                cps[static_cast<size_t>(i2)],
+                u,
+                v,
+                w)) {
+            return false;
+        }
+        const glm::vec3 klmSample = u * klm[i0] + v * klm[i1] + w * klm[i2];
+        fOut = EvalF(klmSample);
+        return true;
+    };
+
+    float fp = 0.0f;
+    float fpn = 0.0f;
+    if (!sampleF(p, fp) || !sampleF(p + normal * eps, fpn)) {
         return 1e-4f;
     }
 
-    const glm::vec3 klmSample =
-        u * klm[i0] + v * klm[i1] + w * klm[i2];
-    const float scale = std::fabs(EvalF(klmSample));
+    const float scale = std::fabs(fpn - fp) / eps;
     return (scale > 1e-4f) ? scale : 1e-4f;
 }
 
